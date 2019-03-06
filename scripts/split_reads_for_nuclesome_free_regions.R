@@ -9,16 +9,33 @@
 # Date of creation: Mon Sep 24 15:45:57 2018
 ##########################################################################
 ##########################################################################
-bamDir = "../R6548_atac/alignments/BAMs_unique_rmdup"
-outDir = "results/splited_NFR"
+bamDir = "../../R6729_atac/alignments/BAMs_unique_rmdup"
+
+outDir = "../results/splited_NFR"
 if(!dir.exists(outDir)) dir.create(outDir)
+outBam = paste0(outDir, "/bam_NFR")
+outBW = paste0(outDir, "/bw_NFR")
+if(!dir.exists(outBam)) dir.create(outBam)
+if(!dir.exists(outBW)) dir.create(outBW)
 
 bamlist = list.files(path = bamDir, pattern = "*.bam$", full.names = TRUE)
-bamlist = bamlist[grep("90min", bamlist)]
+#bamlist = bamlist[grep("90min", bamlist, invert = TRUE)]
+
+Save.splitted.Bam = TRUE;
+save.splitted.BW = TRUE
+
+library(Rsubread)
+#pmapped <- propmapped(sortedBAM)
+#pmapped
+library(GenomicAlignments)
+library(rtracklayer)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
 
 for(n in 1:length(bamlist))
 {
-  # n = 2
+  # n = 1
   cat("bam file -- ", bamlist[n], "\n")
   bam = bamlist[n]
   
@@ -30,13 +47,10 @@ for(n in 1:length(bamlist))
   cat("directory to save -- ", outDir, "\n")
   
   sortedBAM = bam
-  library(Rsubread)
-  #pmapped <- propmapped(sortedBAM)
-  #pmapped
-  library(GenomicAlignments)
+  
   atacReads <- readGAlignmentPairs(sortedBAM, 
                                    param = ScanBamParam(mapqFilter = 30, 
-                                                        flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE), 
+                                                        flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE, isDuplicate =FALSE), 
                                                         what = c("qname", "mapq", "isize")))
   # length(atacReads)
   #atacReads
@@ -46,9 +60,6 @@ for(n in 1:length(bamlist))
   insertSizes <- abs(elementMetadata(atacReads_read1)$isize)
   head(insertSizes)
   
-  library(magrittr)
-  library(dplyr)
-  library(ggplot2)
   fragLenPlot <- table(insertSizes) %>% data.frame %>% rename(InsertSize = insertSizes, 
                                                               Count = Freq) %>% mutate(InsertSize = as.numeric(as.vector(InsertSize)), 
                                                                                        Count = as.numeric(as.vector(Count))) %>% ggplot(aes(x = InsertSize, y = Count)) + 
@@ -60,25 +71,30 @@ for(n in 1:length(bamlist))
     geom_vline(xintercept = c(100), colour = "darkgreen") + 
     theme_bw()
   
+  # split the reads for NFR and mono
   atacReads_Open <- atacReads[insertSizes < 100, ]
   atacReads_MonoNuc <- atacReads[insertSizes > 180 & insertSizes < 240, ]
   atacReads_diNuc <- atacReads[insertSizes > 315 & insertSizes < 437, ]
   
-  outBam = paste0(outDir, "/", bname)
-  openRegionBam <- paste0(outBam, "_openRegions.bam")
-  monoNucBam <- paste0(outBam, "_monoNuc.bam") 
-  diNucBam <- paste0(outBam, "_diNuc.bam")
+  # save splitted bam
+  allRegionBam = paste0(outBam, "/", bname,  "_allRegions.bam")
+  openRegionBam <- paste0(outBam, "/", bname, "_openRegions.bam")
+  monoNucBam <- paste0(outBam, "/", bname, "_monoNuc.bam") 
+  diNucBam <- paste0(outBam, "/", bname, "_diNuc.bam")
   
-  library(rtracklayer)
+  export(atacReads, allRegionBam, format = "bam")
   export(atacReads_Open, openRegionBam, format = "bam")
   export(atacReads_MonoNuc, monoNucBam, format = "bam")
   export(atacReads_diNuc, diNucBam, format = "bam")
   
-  openRegionBW <- paste0(outBam, "_openRegions.bw")
-  monoNucBW <- paste0(outBam, "_monoNuc.bw") 
-  diNucBW <- paste0(outBam, "_diNuc.bw")
+  # save splitted bigwig
+  allRegionBW = paste0(outBW, "/", bname, "_allRegions.bw")
+  openRegionBW <- paste0(outBW, "/", bname, "_openRegions.bw")
+  monoNucBW <- paste0(outBW, "/", bname, "_monoNuc.bw") 
+  diNucBW <- paste0(outBW, "/", bname, "_diNuc.bw")
   
   #coverage(granges(ga))
+  export.bw(coverage(granges(atacReads)), allRegionBW)
   export.bw(coverage(granges(atacReads_Open)), openRegionBW)
   export.bw(coverage(granges(atacReads_MonoNuc)), monoNucBW)
   export.bw(coverage(granges(atacReads_diNuc)), diNucBW)

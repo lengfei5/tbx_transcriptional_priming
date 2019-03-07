@@ -35,7 +35,7 @@ library(ggplot2)
 
 for(n in 1:length(bamlist))
 {
-  # n = 1
+  # n = 7
   cat("bam file -- ", bamlist[n], "\n")
   bam = bamlist[n]
   
@@ -103,6 +103,7 @@ for(n in 1:length(bamlist))
 
 ########################################################
 ########################################################
+# NOT USED !!!
 # Section: try ATACseqQC R pacakge which does not work at all
 ########################################################
 ########################################################

@@ -306,14 +306,13 @@ Comparison.overlapping.peaks = function(design.matrix, peaks.list, toCompare="fa
   {
     #nn = "H3K27me3_AN312"
     #nn = "90min"
-    cat(nn, '\n')
+    cat(nn, ' : ')
     kk = which(design.matrix[, which(colnames(design.matrix)==toCompare)]==nn)
     #if(DB.Analysis){
     #  kk = which(ff$sample==nn)
     #}else{
      
     #}
-    
     if(length(kk)>1)
     {
       peaks = c()
@@ -348,7 +347,7 @@ Comparison.overlapping.peaks = function(design.matrix, peaks.list, toCompare="fa
         try(plot(v))
       }
     }else{
-      cat("Error --- less than 2 samples selected to compare for ", sels2compare[nn], "\n")
+      cat(" < 2 samples selected\n")
     }
   }
   

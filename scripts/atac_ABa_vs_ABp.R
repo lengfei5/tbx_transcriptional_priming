@@ -50,7 +50,7 @@ cat("-- import peak files as GRanges objects \n")
 peaks.list = c()
 for(n in 1:nrow(design.matrix)){
   #n = 14
-  cat(n, '--', design.matrix$file.path[n],  '\n')
+  cat(n, '--', design.matrix$factor.condition[n], ":",  design.matrix$file.path[n],  '\n')
   xx = readPeakFile(design.matrix$file.path[n], as = "GRanges");
   
   if(seqlevelsStyle(xx) != "UCSC") seqlevelsStyle(xx) = "UCSC";
@@ -91,6 +91,7 @@ peaknames = conds
 pval = 10
 
 for(fac in conds){
+  # fac = 'ABa'
   kk = which(design.sels$factor == fac)
   peaks.merged = c() 
   
@@ -99,26 +100,17 @@ for(fac in conds){
     # k = 2
     xx = readPeakFile(design.sels$file.path[k], as = "GRanges");
     if(seqlevelsStyle(xx) != "UCSC") seqlevelsStyle(xx) = "UCSC";
-    p = xx;
-    #p = readPeakFile(ff$file.path[k], as = "GRanges");
-    #eval(parse(text = paste0("p = pp.", k)));
-    with.p.values = "X.log10.pvalue." %in% colnames(mcols(p))
-    if(with.p.values) {
-      p10 <- p[mcols(p)[,"X.log10.pvalue."] > pval];
-      #p10 = reduce(p10);
-      #peaks10= c(peaks10, p10);
-    }else{ 
-      cat("no p values conlumn found for -- ", design.matrix$file.name[k], "\n");
-      PLOT.p10 = FALSE;
-    }
-    #p = reduce(p)
+    with.p.values = "X.log10.pvalue." %in% colnames(mcols(xx))
+    p10 <- xx[mcols(xx)[,"X.log10.pvalue."] > pval]
+    
     if(length(peaks.merged) == 0) {
-      peaks.merged = p10
+      peaks.merged = reduce(p10, ignore.strand = TRUE)
     }else{
-      peaks.merged = union(peaks.merged, p10)
+      peaks.merged = reduce(union(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
     }
+    cat(fac, ' -- all peaks :', length(xx), ' -- peaks <10-10: ', length(p10), ' -- merged peaks', length(peaks.merged), '\n')
   }
-  peaks = c(peaks, reduce(peaks.merged))
+  peaks = c(peaks, peaks.merged)
 }
 
 pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_early_ABa_ABp.pdf"),
@@ -132,7 +124,6 @@ try(plot(v))
 
 dev.off()
 
-
 Define.Groups.peaks = FALSE
 if(Define.Groups.peaks){
   
@@ -140,10 +131,15 @@ if(Define.Groups.peaks){
   # define 7 groups of peaks using ABa ABp and 2to8cell.stage 
   ##########################################
   names(peaks) = conds
-  p = union(peaks[[1]], peaks[[2]])
-  p = union(p, peaks[[3]])
-  p = reduce(p)
-  p.all = p;
+  p.all = union(peaks[[1]], peaks[[2]], ignore.strand = TRUE)
+  p.all = union(p.all, peaks[[3]], ignore.strand = TRUE)
+  p.all = reduce(p.all, ignore.strand = TRUE)
+  
+  export(p.all, con = paste0("../results/peakGroups/early_ABa_ABp_mergedPeaks.bed"))
+  export(peaks[[1]], con = paste0("../results/peakGroups/early_allPeaks.bed"))
+  export(peaks[[2]], con = paste0("../results/peakGroups/ABa_allPeaks.bed"))
+  export(peaks[[3]], con = paste0("../results/peakGroups/ABp_allPeaks.bed"))
+  
   
   p = p.all[overlapsAny(p.all, peaks[[1]])]
   p = p[overlapsAny(p, peaks[[2]])]

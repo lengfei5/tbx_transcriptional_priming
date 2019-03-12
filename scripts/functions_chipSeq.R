@@ -407,6 +407,24 @@ merge.peaks.macs2 = function(peak.list, merge.dist = NULL){
   return(peaks.merged)
 }
 
+quantify.signals.forGenome.csaw = function(bam.list){
+  library(csaw)
+  library(edgeR)
+  library(GenomicRanges)
+  library(rtracklayer)
+  
+  #frag.len <- 110
+  win.width <- 2000
+  chr.selected = c(paste0("chr", c(1:19)))
+  param <- readParam(pe="none", dedup = TRUE, minq=30, restrict = chr.selected)
+  
+  binned <- windowCounts(bam.files, bin=TRUE, width=win.width, param=param)
+  
+  ## save the big file in case it is lost 
+  save(binned, baits, file = paste0(NormDir, "bam_unique_rmdup_readCounts_windows_csaw_forNormalization.Rdata"))
+  
+}
+
 quantify.signals.within.peaks = function(peaks, bam.list, normalization = FALSE)
 {
   require(Rsubread)

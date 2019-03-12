@@ -200,5 +200,139 @@ if(Define.Groups.peaks){
   
 }
 
+########################################################
+########################################################
+# Section:
+# Differential Binding analysis and test the size facotrs of normalization for ChIP-seq data 
+########################################################
+########################################################
+DIR.bams = "../../R6329_R6532_R6533_chipseq_captured/bams_chipseq"
+resDir = '../results/DB_chipseq/'
+tableDir = paste0(resDir, "tables/")
+version.analysis = "_20181022_DESeq2_normalization_mergedtechReps"
+
+NormDir = "../results/normalization/";
+if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
+if(!dir.exists(tableDir)) system(paste0('mkdir -p ', tableDir))
+
+bam.files = list.files(path = DIR.bams, pattern = "*.bam$", full.names = TRUE)
+load(file = paste0(NormDir, "normalization_factors_for_chipseq_captured_seq.Rdata"))
+
+run.DB.using.DESeq2.Save.counts = TRUE
+Normalize.chipseq.make.BigWig = FALSE
+Calculate.Scaling.factors.for.Chipseq = FALSE
+
+prots =  c("Cbx7", "Ring1B")
+
+Use.common.peaks.by.Cbx7_Ring1B.controlSamples = TRUE
+if(Use.common.peaks.by.Cbx7_Ring1B.controlSamples){
+  if(!file.exists(paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))){
+    DIR.peaks = "../../R6329_R6532_R6533_chipseq_captured/Peaks/macs2_broad"
+    peak.list = list.files(path = DIR.peaks, pattern = "*.xls", full.names = TRUE)
+    peak.list = peak.list[grep("710", peak.list)]
+    
+    source("functions_chipSeq.R")
+    peaks = merge.peaks.macs2(peak.list[grep("Negative.Control", peak.list)], merge.dist = 2000);
+    write.table(peaks, file = paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.bed"), 
+                sep = "\t", col.names = FALSE, row.names = FALSE, quote = FALSE)
+    save(peaks, file =  paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))
+  }else{
+    load(file =  paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))
+  }
+}
+
+for(n in 1:length(prots)){
+  
+  n = 1;
+  prot = prots[n];
+  # prot = "Cbx7"
+  source("functions_chipSeq.R")
+  
+  #peaks = merge.peaks.macs2(peak.list[grep(prot, peak.list)], merge.dist = 2000);
+  
+  bams = design$bam.files[which(design$type=="chipseq" & design$IP==prot)]
+  design.matrix = design[which(design$type=="chipseq" & design$IP==prot), ]
+  
+  source("functions_chipSeq.R")
+  if(!file.exists(paste0(resDir, "read_counts_for_ChIPseq_", prot, ".Rdata"))){
+    counts = quantify.signals.within.peaks(peaks, bam.list = bams)
+    #colnames(counts) = basename(bams)
+    save(counts, file = paste0(resDir, "read_counts_for_ChIPseq_", prot, ".Rdata"))
+  }else{
+    load(file = paste0(resDir, "read_counts_for_ChIPseq_", prot, ".Rdata"))
+  }
+  
+  if(Calculate.Scaling.factors.for.Chipseq){
+    
+    binned.chipseq = filtered.binned[, which(design$type=="chipseq")]
+    #source("functions_analysis_captured.R")
+    #norms.chipseq = calcNormFactors.for.caputred.using.csaw(dd = binned.chipseq, method = "DESeq2", cutoff.average.counts = 300);
+    
+    source("functions_analysis_captured.R")
+    norms.chipseq = calcNormFactors.for.caputred.using.csaw(dd = binned.chipseq, method = "DESeq2", cutoff.average.counts = 100);
+    
+    norms = norms.chipseq$library.size[match(design.matrix$bam.files, norms.chipseq$bam.files)] 
+    #design.matrix = data.frame(design.matrix)
+  }
+  
+  pdfname = paste0(resDir, "Data_Qulity_Assessment_DB_analysis_ChIPseq_", prot, version.analysis, ".pdf")
+  pdf(pdfname, width = 12, height = 10)
+  
+  source("functions_chipSeq.R")
+  
+  kk = which(colnames(design.matrix) == "condition")
+  res = DB.analysis(counts, design.matrix[, kk], size.factors = NULL, Threshold.read.counts = 50)
+  
+  #plot(design.matrix$totals, norms, log="xy", xlab = 'library size', ylab="size factors calculated with PRC-unrelated regions")
+  
+  #res = DB.analysis(counts, design.matrix[, kk], size.factors = norms, Threshold.read.counts = 50)
+  
+  dev.off()
+  
+  ##########################################
+  # DB analysis using DESeq2 
+  ##########################################
+  if(run.DB.using.DESeq2.Save.counts){
+    
+    dds = res;
+    fpm = fpm(dds, robust = TRUE)
+    
+    dds = estimateDispersions(dds, fitType = "parametric")
+    par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)
+    plotDispEsts(dds, ylim=c(0.001, 10), cex=0.6)
+    
+    dds = nbinomWaldTest(dds, betaPrior = TRUE)
+    resultsNames(dds)
+    
+    res1 <- results(dds, contrast = c("conds", "UNC3866", "Negative.Control.UNC4219"));
+    res2 = results(dds, contrast = c("conds", "UNC4976", "Negative.Control.UNC4219"));
+    summary(res1)
+    res1 = as.data.frame(res1);
+    summary(res2)
+    res2 = as.data.frame(res2);
+    
+    #pdfname = paste0(resDir, "results_DB_analysis_ChIPseq_", prot, version.analysis, ".pdf")
+    #pdf(pdfname, width = 12, height = 10)
+    
+    # plot(res1$, res2$log2FoldChange)
+    #plot(apply(fpm[, c(1, 2)], 1, mean), apply(fpm[, c(3, 4)], 1, mean), log='xy', cex=0.7, xlab='control', ylab= "UNC3866");
+    #abline(0, 1, col='red', lwd=2.0)
+    #plot(apply(fpm[, c(1, 2)], 1, mean), apply(fpm[, c(5, 6)], 1, mean), log='xy', cex=0.7, xlab= "control", ylab="UNC4976")
+    #abline(0, 1, col='red', lwd=2.0)
+    
+    #dev.off();
+    
+    write.table(fpm, file = paste0(tableDir, "normalized_readCounts_for_", prot, version.analysis, ".txt"), sep = "\t",
+                col.names = TRUE, row.names = TRUE, quote = FALSE)
+    write.table(res1, file = paste0(tableDir, "DB_analysis_using_DESeq2_for_", prot, "_UNC3866_vs_Control",  version.analysis, ".txt"), sep = "\t",
+                col.names = TRUE, row.names = TRUE, quote = FALSE)
+    write.table(res2, file = paste0(tableDir, "DB_analysis_using_DESeq2_for_", prot, "_UNC4976_vs_Control", version.analysis, ".txt"), sep = "\t",
+                col.names = TRUE, row.names = TRUE, quote = FALSE)
+    
+  }
+  
+}
+
+
 
 

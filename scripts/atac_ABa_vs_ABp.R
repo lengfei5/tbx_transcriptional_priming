@@ -206,39 +206,26 @@ if(Define.Groups.peaks){
 # Differential Binding analysis and test the size facotrs of normalization for ChIP-seq data 
 ########################################################
 ########################################################
-DIR.bams = "../../R6329_R6532_R6533_chipseq_captured/bams_chipseq"
-resDir = '../results/DB_chipseq/'
-tableDir = paste0(resDir, "tables/")
-version.analysis = "_20181022_DESeq2_normalization_mergedtechReps"
+DIR.bams = "../data/Bams"
+DIR.peaks = "../results/peakGroups"
 
-NormDir = "../results/normalization/";
+resDir = '../results/DB_ABa_ABp/'
+tableDir = paste0(resDir, "tables/")
+version.analysis = "_20190312"
+
+run.DB.using.DESeq2.Save.counts = TRUE
+
 if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
 if(!dir.exists(tableDir)) system(paste0('mkdir -p ', tableDir))
 
 bam.files = list.files(path = DIR.bams, pattern = "*.bam$", full.names = TRUE)
-load(file = paste0(NormDir, "normalization_factors_for_chipseq_captured_seq.Rdata"))
+peak.list = list.files(path = DIR.peaks, pattern = "*.bed", full.names = TRUE)
 
-run.DB.using.DESeq2.Save.counts = TRUE
-Normalize.chipseq.make.BigWig = FALSE
-Calculate.Scaling.factors.for.Chipseq = FALSE
+peak.list = peak.list[grep("pooled|random", peak.list)]
 
-prots =  c("Cbx7", "Ring1B")
-
-Use.common.peaks.by.Cbx7_Ring1B.controlSamples = TRUE
-if(Use.common.peaks.by.Cbx7_Ring1B.controlSamples){
-  if(!file.exists(paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))){
-    DIR.peaks = "../../R6329_R6532_R6533_chipseq_captured/Peaks/macs2_broad"
-    peak.list = list.files(path = DIR.peaks, pattern = "*.xls", full.names = TRUE)
-    peak.list = peak.list[grep("710", peak.list)]
-    
-    source("functions_chipSeq.R")
-    peaks = merge.peaks.macs2(peak.list[grep("Negative.Control", peak.list)], merge.dist = 2000);
-    write.table(peaks, file = paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.bed"), 
-                sep = "\t", col.names = FALSE, row.names = FALSE, quote = FALSE)
-    save(peaks, file =  paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))
-  }else{
-    load(file =  paste0(resDir, "commen_peaks_by_Cbx7_Ring1B_Controlsample.Rdata"))
-  }
+if(length(peaks.list)>1){
+  source("functions_chipSeq.R")
+  peaks = merge.peaks.macs2(peak.list)
 }
 
 for(n in 1:length(prots)){
@@ -262,18 +249,6 @@ for(n in 1:length(prots)){
     load(file = paste0(resDir, "read_counts_for_ChIPseq_", prot, ".Rdata"))
   }
   
-  if(Calculate.Scaling.factors.for.Chipseq){
-    
-    binned.chipseq = filtered.binned[, which(design$type=="chipseq")]
-    #source("functions_analysis_captured.R")
-    #norms.chipseq = calcNormFactors.for.caputred.using.csaw(dd = binned.chipseq, method = "DESeq2", cutoff.average.counts = 300);
-    
-    source("functions_analysis_captured.R")
-    norms.chipseq = calcNormFactors.for.caputred.using.csaw(dd = binned.chipseq, method = "DESeq2", cutoff.average.counts = 100);
-    
-    norms = norms.chipseq$library.size[match(design.matrix$bam.files, norms.chipseq$bam.files)] 
-    #design.matrix = data.frame(design.matrix)
-  }
   
   pdfname = paste0(resDir, "Data_Qulity_Assessment_DB_analysis_ChIPseq_", prot, version.analysis, ".pdf")
   pdf(pdfname, width = 12, height = 10)

@@ -135,7 +135,7 @@ if(Define.Groups.peaks){
   p.all = union(p.all, peaks[[3]], ignore.strand = TRUE)
   p.all = reduce(p.all, ignore.strand = TRUE)
   
-  export(p.all, con = paste0("../results/peakGroups/early_ABa_ABp_mergedPeaks.bed"))
+  export(p.all, con = paste0("../results/peakGroups/early_ABa_ABp_pooledPeaks.bed"))
   export(peaks[[1]], con = paste0("../results/peakGroups/early_allPeaks.bed"))
   export(peaks[[2]], con = paste0("../results/peakGroups/ABa_allPeaks.bed"))
   export(peaks[[3]], con = paste0("../results/peakGroups/ABp_allPeaks.bed"))

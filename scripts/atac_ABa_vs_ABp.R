@@ -213,7 +213,9 @@ resDir = '../results/DB_ABa_ABp/'
 tableDir = paste0(resDir, "tables/")
 version.analysis = "_20190312"
 
+addBackground = TRUE
 run.DB.using.DESeq2.Save.counts = TRUE
+
 
 if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
 if(!dir.exists(tableDir)) system(paste0('mkdir -p ', tableDir))
@@ -225,7 +227,7 @@ peak.list = peak.list[grep("pooled|random", peak.list)]
 
 if(length(peaks.list)>1){
   source("functions_chipSeq.R")
-  peaks = merge.peaks.macs2(peak.list)
+  peaks = merge.peaks.macs2(peak.list, merge.dist = NULL, peakBackground = TRUE)
 }
 
 for(n in 1:length(prots)){

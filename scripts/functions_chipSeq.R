@@ -403,6 +403,7 @@ merge.peaks.macs2 = function(peak.list, merge.dist = NULL){
     peaks.merged = peaks.merged$region
     #peaks.merged = GenomicRanges::reduce(pps);
   }
+  
   peaks.merged = as.data.frame(peaks.merged)
   return(peaks.merged)
 }

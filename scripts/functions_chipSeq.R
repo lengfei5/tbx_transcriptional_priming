@@ -256,7 +256,7 @@ PLOT.Quality.Controls.Summary = function(stat, index)
   
 }
 
-make.design.matrix.from.peaks.files = function(peak.files)
+make.design.matrix.from.file.list = function(peak.files)
 {
   cat("-- parsing design matrix\n")
   bname = basename(peak.files)
@@ -426,9 +426,10 @@ quantify.signals.forGenome.csaw = function(bam.list){
   
 }
 
-quantify.signals.within.peaks = function(peaks, bam.list, normalization = FALSE)
+quantify.signals.within.peaks = function(peaks, bam.list, rpkm.normalization = FALSE, isPairedEnd = FALSE)
 {
   require(Rsubread)
+  
   ## peak regions (configure your peak regions into a data.frame)
   peaks = data.frame(peaks)
   colnames(peaks)[c(1:3)] = c("chr", "start", "end")
@@ -440,12 +441,17 @@ quantify.signals.within.peaks = function(peaks, bam.list, normalization = FALSE)
   
   ## count reads for those peak regions using 
   fc <- featureCounts(files=bam.list, annot.ext = SAF, countMultiMappingReads = FALSE, minMQS = 10, 
-                      ignoreDup = TRUE, strandSpecific = 0, juncCounts = FALSE, nthreads = 6)
-  stat = fc$stat;
-  counts = fc$counts;
-  counts.annot = fc$annotation
+                      ignoreDup = TRUE, strandSpecific = 0, juncCounts = FALSE, nthreads = 6, isPairedEnd = isPairedEnd)
   
-  if(normalization){
+  if(!rpkm.normalization){
+    
+    res = fc;
+    
+  }else{
+    stat = fc$stat;
+    counts = fc$counts;
+    counts.annot = fc$annotation
+    
     rpkm = matrix(NA, ncol = ncol(counts), nrow = nrow(counts))
     colnames(rpkm) = colnames(counts)
     row.names(rpkm) = rownames(counts)
@@ -461,15 +467,8 @@ quantify.signals.within.peaks = function(peaks, bam.list, normalization = FALSE)
     #rpkm = log2(rpkm)
     res = data.frame(SAF, Length=counts.annot$Length[match(SAF$GeneID, counts.annot$GeneID)], 
                      rpkm[match(SAF$GeneID, rownames(rpkm)), ], stringsAsFactors = FALSE)
-    
-  }else{
-    res = counts;
   }
   
-  ## save the peak information and quantified different rpkm signals within peaks
-  #write.table(res, file=paste0(DIR.res, "/rpkm_within_chipeakk.txt"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
-  #save(peaks, res, file='Rdata/Peaks_merged_macs2_p_5_filtered_N2_gene_assignment_TSS_WBcel235_analysis_hisModif_tbx_signals_v1.Rdata')
-  colnames(res) = basename(bam.list)
   return(res)
   
 }

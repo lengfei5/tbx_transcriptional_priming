@@ -675,10 +675,10 @@ panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.8, col='black
 # 
 ########################################################
 ########################################################
-customizedAssignment.peak2gene = function(pp, window.size=2000, annotation='wormbase')
+customizedAssignment.peak2gene = function(peak.coord, window.size=2000, annotation='wormbase')
 {
   # a customized way of assigning peak to genes
-  # 
+  # Inputs: peak.coord -- data.frame for peak coordinates with at least 3 first colunms (chr, start, end)
   # 
   
   ##########################################
@@ -720,47 +720,62 @@ customizedAssignment.peak2gene = function(pp, window.size=2000, annotation='worm
   ##########################################
   # assign peaks one by one
   ##########################################
-  load(file= paste0('/Volumes/groups/cochella/jiwang/Projects/Thomas/Thomas_ChIPseq/results/Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata'))
+  #load(file= paste0('/Volumes/groups/cochella/jiwang/Projects/Thomas/Thomas_ChIPseq/results/Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata'))
   #load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata')
-  pp = mergedpeaks;
-  peaks = pp
+  #pp = mergedpeaks;
+  peaks = peak.coord
   
   chrom.size = read.delim('/Volumes/groups/cochella/jiwang/annotations/ce10_chrom.sizes', sep='\t', header = FALSE)
   
-  targets = NULL;
-  for(n in 1:length(peaks))
-  #for(n in 1:100)
-  {
-    # n = 2
-    if(n%%1000 == 0) cat('peak index ....', n, '\n')
-    px = data.frame(peaks[n], stringsAsFactors = FALSE); 
-    
+  peaks.assignment.window = function(px, window.size = 2000){
+    #library("tictoc")
+    #tic()
+    ### px is a vector of chr, star, end ###
+    # px = peaks[12282, ]; window.size=2000;
+    px = data.frame(px)
     ll = chrom.size[which(chrom.size[,1]==px[,1]), 2]
+    aa.sel = aa[seqnames(aa) == as.character(px[, 1])]
     wsize = window.size;
     find = 1
+    
     while(find>0)
     {
-      start = px[,2]-wsize;end=px[,3]+wsize;
+      start = as.numeric(as.character(px[,2])) - wsize;
+      end = as.numeric(as.character(px[,3])) + wsize;
       
       if(start<0) start=0;
       if(end>ll) end=ll;
-      dd = data.frame(px[,1], start, end, stringsAsFactors = FALSE); colnames(dd) = c('chr', 'start', 'end')
-      newp = makeGRangesFromDataFrame(dd)
       
-      if(overlapsAny(newp, aa))
-      {
-        tt = aa[overlapsAny(aa, newp)]
-        for(m in 1:length(tt))
-        {
-          targets = rbind(targets, data.frame(data.frame(px), data.frame(tt[m]), window.size = wsize, stringsAsFactors = FALSE))
-        }
-        find = -1; 
+      dd = data.frame(px[,1], start, end, stringsAsFactors = FALSE); 
+      colnames(dd) = c('chr', 'start', 'end')
+      newp = makeGRangesFromDataFrame(dd)
+      #tic()
+      #tt = aa.sel[overlapsAny(aa.sel, newp)]
+      #toc()
+      #tt = findOverlaps(aa.sel, newp, ignore.strand = TRUE)
+      #tic()
+      tt = subsetByOverlaps(aa.sel, newp, ignore.strand = TRUE)
+      #toc()
+      
+      if(length(tt)>0){
+        tt = data.frame(tt)
+        targets = c(wsize, t(apply(tt, 2, function(x) gsub(' ', '',paste0(x, collapse = ",")))))
+        find = -1;
       }else{
         wsize = wsize + window.size;
       }
+      
     }
-    #resize(px, fix = '', width = 10)
-    #reduce(px, drop.empty.ranges=FALSE, min.gapwidth=1L, with.revmap=FALSE, with.inframe.attrib=FALSE, ignore.strand=FALSE)
+    #toc()
+    return(targets)
+  }
+  
+  targets = data.frame(matrix(NA, nrow = nrow(peaks), ncol = 8))
+  colnames(targets) = c('window.size','chr.gene', 'start.gene', 'end.gene', 'width.gene', 'strand.gene', 
+                     'WormBase.Gene.ID', 'gene')
+  for(n in 1:nrow(peaks)){
+    if(n%%1000 == 0) cat('n = ', n, "\n")
+    if(as.character(peaks[n, 1]) != 'chrM') targets[n, ] = peaks.assignment.window(peaks[n, ], window.size = window.size)
   }
   
   return(targets)

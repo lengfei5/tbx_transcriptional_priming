@@ -298,48 +298,21 @@ o1 = order(as.numeric(gsub("min", '',design.matrix$condition)), design.matrix$fa
 design.matrix = design.matrix[o1, ]
 xx = xx[, o1]
 
-
 # peak2gene assignment
-makeGRangesFromDataFrame(df)
-load(file= paste0('Rdata/Merged_Peaks_macs2_p_5_filtered_N2', version.analysis,'.Rdata'))
-#load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata')
-pp = mergedpeaks;
+peak.coord = data.frame(t(sapply(rownames(xx), function(x) unlist(strsplit(gsub("bg_", "",x), "_")))))
 
 source('functions_chipSeq.R')
-#res.wsize.1kb = PeakAnnotation.refseq(pp, 1000)
-res.wsize.2kb = PeakAnnotation.customized(pp, window.size=2000, annotation='wormbase')
-
+res.wsize.2kb = customizedAssignment.peak2gene(peak.coord = peak.coord, window.size=2000, annotation='wormbase')
 
 #save(pp, res.wsize.2kb, file=paste0('Rdata/Merged_Peaks_macs2_p_5_filtered_N2', version.analysis, 'gene_assignment_WBcel235.Rdata'))
-
-#load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2_gene_assignment_WBcel235.Rdata')
-names =  c('chr.peak', 'start.peak', 'end.peak', 'width.peak', 'strand.peak', 
-           'chr.gene', 'start.gene', 'end.gene', 'width.gene', 'strand.gene', 
-           'WormBase.Gene.ID', 'gene',  'window.size')
-#colnames(res.wsize.1kb) = names
-colnames(res.wsize.2kb) = names
-
 res = res.wsize.2kb;
-res = data.frame(res, stringsAsFactors = FALSE)
-res$chr.peak = as.character(res$chr.peak)
-MakePeakNames = function(x){paste(x, sep='', collapse = '_')}
-peaknames = rep(NA, nrow(res))
-for(n in 1:nrow(res))
-{
-  #n = 2
-  peaknames[n] = MakePeakNames(res[n, c(1:3)])
-}
+res = data.frame(peak.coord,res, xx, stringsAsFactors = FALSE)
+colnames(res)[c(1:3)] = c('peak.chr', 'peak.start', 'peak.end') 
 
-res = data.frame(peaknames, res, stringsAsFactors = FALSE)
-colnames(res)[1] = 'peak.name'
+kk = grep('lsy-6', res$gene);
 
-Test.peaks.association = FALSE
-if(Test.peaks.association)
-{
-  kk = grep('lsy-6', res$gene);
-  mm = match(res$peak.name, unique(res$peak.name[kk]))
-  res[which(!is.na(mm)==TRUE), ]
-}
+write.table(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment.txt"), sep = "\t",
+            col.names = TRUE, row.names = TRUE, quote = FALSE)
 
 if(batch.removal){
   cat('remove the batch effect using ComBat \n')
@@ -355,7 +328,6 @@ if(batch.removal){
   mod = model.matrix(~ as.factor(factor.condition), data = design.tokeep);
   yy = ComBat(dat=xx[,jj], batch=batch, mod=mod, par.prior=TRUE, ref.batch = 2)
 }
-
 
 
 if(run.pairwise.Comparison.DESeq2){

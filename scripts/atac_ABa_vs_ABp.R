@@ -214,7 +214,9 @@ tableDir = paste0(resDir, "tables/")
 version.analysis = "_20190312"
 
 addBackground = TRUE
-run.DB.using.DESeq2.Save.counts = TRUE
+run.featureCount.quantification = TRUE
+run.pairwise.Comparison.DESeq2 = FALSE
+batch.removal = FALSE
 
 
 if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
@@ -236,13 +238,17 @@ if(addBackground){
 ##########################################
 source("functions_chipSeq.R")
 
-#fc = quantify.signals.within.peaks(peaks, bam.list = bam.files)
-#fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files)
-#save(fc, fc.bgs, file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
+if(run.featureCount.quantification){
+  fc = quantify.signals.within.peaks(peaks, bam.list = bam.files)
+  fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files)
+  save(fc, fc.bgs, file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata")) 
+}else{
+  load(file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
+}
 
-load(file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
-
-design.matrix = make.design.matrix.from.file.list(bam.files)
+bams = bam.files;
+bams[grep('tbx_merged', bams)] = "../data/Bams/tbx_90min_merged.bam"  
+design.matrix = make.design.matrix.from.file.list(bams)
 design.matrix$condition[which(design.matrix$condition=="60min")] = "90min"
 design.matrix$condition[which(design.matrix$condition=="140min")] = "200min"
 design.matrix$factor[grep("Aba", design.matrix$factor)] = "ABa"
@@ -272,32 +278,70 @@ source("functions_chipSeq.R")
 kk = which(colnames(design.matrix) == "factor.condition")
 res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 20)
 
-#plot(design.matrix$totals, norms, log="xy", xlab = 'library size', ylab="size factors calculated with PRC-unrelated regions")
-
-#res = DB.analysis(counts, design.matrix[, kk], size.factors = norms, Threshold.read.counts = 50)
-
 dev.off()
 
 ##########################################
 # calculate the rpkm and remove the batch difference
 ##########################################
-batch.removal = TRUE
+dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ factor.condition)
+#dds <- dds[ rowSums(counts(dds)) > 20, ]
+sizeFactors(dds) = sizeFactors(res)
+fpm = fpm(dds, robust = TRUE)
+rownames(fpm) = annot$GeneID
+
+fpkm = fpm/annot$Length*10^3
+
+xx = log2(fpkm)
+
+# reorder the samples
+o1 = order(as.numeric(gsub("min", '',design.matrix$condition)), design.matrix$factor)
+design.matrix = design.matrix[o1, ]
+xx = xx[, o1]
+
+
+# peak2gene assignment
+makeGRangesFromDataFrame(df)
+load(file= paste0('Rdata/Merged_Peaks_macs2_p_5_filtered_N2', version.analysis,'.Rdata'))
+#load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata')
+pp = mergedpeaks;
+
+source('functions_chipSeq.R')
+#res.wsize.1kb = PeakAnnotation.refseq(pp, 1000)
+res.wsize.2kb = PeakAnnotation.customized(pp, window.size=2000, annotation='wormbase')
+
+
+#save(pp, res.wsize.2kb, file=paste0('Rdata/Merged_Peaks_macs2_p_5_filtered_N2', version.analysis, 'gene_assignment_WBcel235.Rdata'))
+
+#load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2_gene_assignment_WBcel235.Rdata')
+names =  c('chr.peak', 'start.peak', 'end.peak', 'width.peak', 'strand.peak', 
+           'chr.gene', 'start.gene', 'end.gene', 'width.gene', 'strand.gene', 
+           'WormBase.Gene.ID', 'gene',  'window.size')
+#colnames(res.wsize.1kb) = names
+colnames(res.wsize.2kb) = names
+
+res = res.wsize.2kb;
+res = data.frame(res, stringsAsFactors = FALSE)
+res$chr.peak = as.character(res$chr.peak)
+MakePeakNames = function(x){paste(x, sep='', collapse = '_')}
+peaknames = rep(NA, nrow(res))
+for(n in 1:nrow(res))
+{
+  #n = 2
+  peaknames[n] = MakePeakNames(res[n, c(1:3)])
+}
+
+res = data.frame(peaknames, res, stringsAsFactors = FALSE)
+colnames(res)[1] = 'peak.name'
+
+Test.peaks.association = FALSE
+if(Test.peaks.association)
+{
+  kk = grep('lsy-6', res$gene);
+  mm = match(res$peak.name, unique(res$peak.name[kk]))
+  res[which(!is.na(mm)==TRUE), ]
+}
+
 if(batch.removal){
-  dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ factor.condition)
-  #dds <- dds[ rowSums(counts(dds)) > 20, ]
-  sizeFactors(dds) = sizeFactors(res)
-  fpm = fpm(dds, robust = TRUE)
-  rownames(fpm) = annot$GeneID
-  
-  fpkm = fpm/annot$Length*10^3
-  
-  xx = log2(fpkm)
-  
-  # reorder the samples
-  o1 = order(as.numeric(gsub("min", '',design.matrix$condition)), design.matrix$factor)
-  design.matrix = design.matrix[o1, ]
-  xx = xx[, o1]
-  
   cat('remove the batch effect using ComBat \n')
   require("sva")
   
@@ -305,13 +349,16 @@ if(batch.removal){
   design.matrix$batch[grep('738', design.matrix$file.name)] = 2
   design.matrix$batch[grep('713', design.matrix$file.name)] = 1
   
-  batch = design.matrix$batch;
-  design.tokeep = design.matrix
-  
+  jj = which(design.matrix$batch==1 | design.matrix$batch == 2)
+  batch = design.matrix$batch[jj];
+  design.tokeep = design.matrix[jj,]
   mod = model.matrix(~ as.factor(factor.condition), data = design.tokeep);
-  
-  yy = ComBat(dat=xx, batch=batch, mod=mod, par.prior=TRUE, ref.batch = 2)
-  
+  yy = ComBat(dat=xx[,jj], batch=batch, mod=mod, par.prior=TRUE, ref.batch = 2)
+}
+
+
+
+if(run.pairwise.Comparison.DESeq2){
   dds = estimateDispersions(dds, fitType = "parametric")
   par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)
   plotDispEsts(dds, ylim=c(0.001, 10), cex=0.6)

@@ -492,12 +492,19 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
   design.matrix = data.frame(design.matrix)
   if(ncol(design.matrix)==1) {
     colnames(design.matrix) = "conds";
+    #newO = order(design.matrix$conds)
+    #design.matrix = design.matrix[newO, ]
+    #counts = counts[, newO]
+    
     dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ conds)
     
     conditions = design.matrix$conds; 
-    
   }else{
     conds = factor(paste0(colnames(design.matrix), collapse = " + "))
+    #newO = order(design.matrix$conds)
+    #design.matrix = design.matrix[newO, ]
+    #counts = counts[, newO]
+    
     conditions = apply(design.matrix, 1, function(x) {paste0(x, collapse = "_")})
     eval(parse(text = paste0("dds <- DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ ", conds, ")")))
   }
@@ -661,5 +668,132 @@ panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.8, col='black
   #lines(stats::lowess(x[ok], y[ok], f = span, iter = iter), 
   #        col = col.smooth, ...)
 }
+
+########################################################
+########################################################
+# Section : customized peak-to-gene assignment
+# 
+########################################################
+########################################################
+customizedAssignment.peak2gene = function(pp, window.size=2000, annotation='wormbase')
+{
+  # a customized way of assigning peak to genes
+  # 
+  # 
+  
+  ##########################################
+  # prepare the annotation
+  ##########################################
+  ### import Refseq annotation
+  #annot = read.table('/Volumes/groups/cochella/jiwang/Projects/Julien/R4224/Refseq_annotation.txt', header = TRUE, sep='\t')
+  #save(annot, file='Refseq_annotation.Rdata')
+  if(annotation=='wormbase'){
+    #annot = read.delim('/Volumes/groups/cochella/jiwang/annotations/BioMart_WBcel235.txt', sep='\t', header = TRUE)
+    #colnames(annot)[c(3,)]
+    #save(annot, file='/Volumes/groups/cochella/jiwang/annotations/BioMart_WBcel235.Rdata')
+    load(file='/Volumes/groups/cochella/jiwang/annotations/BioMart_WBcel235.Rdata')
+    ## filter the annotation
+    sels = which(annot$Chromosome.scaffold.name != "MtDNA" & annot$Status..gene.=="KNOWN");
+    annot = annot[sels, ]
+    mm = match(unique(annot$Gene.stable.ID), annot$Gene.stable.ID)
+    annot = annot[mm, ]
+    aa = data.frame(annot$Chromosome.scaffold.name,
+                    annot$Gene.Start..bp., annot$Gene.End..bp., 
+                    annot$Strand, annot$Gene.stable.ID, annot$Gene.name, stringsAsFactors = FALSE);
+    colnames(aa) = c('chr', 'start', 'end', 'strand', 'wormbase.ID', 'gene')
+    aa$strand[which(aa$strand>0)] = '+';
+    aa$strand[which(aa$strand<0)] = '-';
+    aa$chr = paste0('chr', aa$chr)
+  }else{
+    if(annotation=='refseq'){
+      load(file='Refseq_annotation.Rdata');
+      aa = data.frame(annot$ce10.refGene.chrom, 
+                      annot$ce10.refGene.txStart, annot$ce10.refGene.cdsEnd, 
+                      annot$ce10.refGene.strand, annot$ce10.refGene.name, annot$ce10.refGene.name2, stringsAsFactors = FALSE);
+      colnames(aa) = c('chr', 'start', 'end', 'strand', 'RefID', 'gene')
+    }else{
+      cat('Error :', annotation, ' not available')  
+    }
+  }
+  aa = makeGRangesFromDataFrame(aa, keep.extra.columns=TRUE)
+  
+  ##########################################
+  # assign peaks one by one
+  ##########################################
+  load(file= paste0('/Volumes/groups/cochella/jiwang/Projects/Thomas/Thomas_ChIPseq/results/Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata'))
+  #load(file='Rdata/Merged_Peaks_macs2_p_5_filtered_N2.Rdata')
+  pp = mergedpeaks;
+  peaks = pp
+  
+  chrom.size = read.delim('/Volumes/groups/cochella/jiwang/annotations/ce10_chrom.sizes', sep='\t', header = FALSE)
+  
+  targets = NULL;
+  for(n in 1:length(peaks))
+  #for(n in 1:100)
+  {
+    # n = 2
+    if(n%%1000 == 0) cat('peak index ....', n, '\n')
+    px = data.frame(peaks[n], stringsAsFactors = FALSE); 
+    
+    ll = chrom.size[which(chrom.size[,1]==px[,1]), 2]
+    wsize = window.size;
+    find = 1
+    while(find>0)
+    {
+      start = px[,2]-wsize;end=px[,3]+wsize;
+      
+      if(start<0) start=0;
+      if(end>ll) end=ll;
+      dd = data.frame(px[,1], start, end, stringsAsFactors = FALSE); colnames(dd) = c('chr', 'start', 'end')
+      newp = makeGRangesFromDataFrame(dd)
+      
+      if(overlapsAny(newp, aa))
+      {
+        tt = aa[overlapsAny(aa, newp)]
+        for(m in 1:length(tt))
+        {
+          targets = rbind(targets, data.frame(data.frame(px), data.frame(tt[m]), window.size = wsize, stringsAsFactors = FALSE))
+        }
+        find = -1; 
+      }else{
+        wsize = wsize + window.size;
+      }
+    }
+    #resize(px, fix = '', width = 10)
+    #reduce(px, drop.empty.ranges=FALSE, min.gapwidth=1L, with.revmap=FALSE, with.inframe.attrib=FALSE, ignore.strand=FALSE)
+  }
+  
+  return(targets)
+}
+
+Peak.GPS = function(pp)
+{
+  #pp = res[407, ]
+  summit = floor(mean(as.numeric(pp[match(c('start.peak', 'end.peak'), names(pp))])));
+  tss = as.numeric(pp[which(names(pp)=='TSS')]);
+  strand = pp[which(names(pp)=='strand.gene')];
+  start = as.numeric(pp[which(names(pp)=='start.gene')]);
+  end = as.numeric(pp[which(names(pp)=='end.gene')]);
+  if(is.na(tss)){
+    if(strand=='+'){tss = start;
+    }else{tss = end;}
+  }
+  dist.tss = summit - tss; if(strand =='-') dist.tss = - dist.tss;
+  promoter.1kb = (summit< (tss+1000) & summit> (tss-1000))
+  promoter.2kb = ((summit< (tss+2000) & summit > (tss+1000)) | (summit> (tss-2000) & summit<(tss-1000)))
+  gene.body = (summit< end & summit> start)
+  if(strand=='+')
+  {
+    dowstream.3kb = (summit > end & summit < (end+3000))
+  }else{
+    dowstream.3kb = (summit > (start -3000) & summit < (start))
+  }
+  test = c(promoter.1kb, promoter.2kb, gene.body, dowstream.3kb)
+  if(sum(test)==0) {test = c(test, TRUE) 
+  }else {test = c(test, FALSE)}
+  
+  return(c(dist.tss, test))
+}
+
 
 

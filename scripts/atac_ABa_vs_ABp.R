@@ -236,10 +236,11 @@ if(addBackground){
 ##########################################
 source("functions_chipSeq.R")
 
-fc = quantify.signals.within.peaks(peaks, bam.list = bam.files)
-fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files)
+#fc = quantify.signals.within.peaks(peaks, bam.list = bam.files)
+#fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files)
+#save(fc, fc.bgs, file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
 
-save(fc, fc.bgs, file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
+load(file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
 
 design.matrix = make.design.matrix.from.file.list(bam.files)
 design.matrix$condition[which(design.matrix$condition=="60min")] = "90min"
@@ -247,16 +248,29 @@ design.matrix$condition[which(design.matrix$condition=="140min")] = "200min"
 design.matrix$factor[grep("Aba", design.matrix$factor)] = "ABa"
 design.matrix$factor[grep("Abp", design.matrix$factor)] = "ABp"
 design.matrix$factor.condition = paste0(design.matrix$condition, "_", design.matrix$factor)
-design.matrix = design.matrix[order(design.matrix$condition, design.matrix$factor), ]
+design.matrix$sampleID = sapply(design.matrix$file.name, function(x) unlist(strsplit(gsub('.bam', '', x), "_"))[3])
+design.matrix$file.name = paste0(design.matrix$factor, "_", design.matrix$condition, "_", design.matrix$sampleID)
 
+stat = fc$stat
+kk = which(stat$Status=="Assigned" | stat$Status== "Unassigned_NoFeatures")
+ss = apply(stat[kk, -1], 2, sum)
+names(ss) = design.matrix$file.name
 
-pdfname = paste0(resDir, "Data_Qulity_Assessment_DB_analysis_ChIPseq_", prot, version.analysis, ".pdf")
-pdf(pdfname, width = 12, height = 10)
+annot.bg = fc.bgs$annotation 
+annot.bg$GeneID = paste0('bg_', annot.bg$GeneID)
+annot = rbind(fc$annotation, annot.bg)
+
+index.peaks = grep("bg_", annot$GeneID, invert = TRUE)
+
+counts = rbind(fc$counts, fc.bgs$counts)
+colnames(counts) = design.matrix$file.name
+
+pdfname = paste0(resDir, "Data_Qulity_Assessment_atacPeakSignals", version.analysis, ".pdf")
+pdf(pdfname, width = 16, height = 12)
 
 source("functions_chipSeq.R")
-
-kk = which(colnames(design.matrix) == "condition")
-res = DB.analysis(counts, design.matrix[, kk], size.factors = NULL, Threshold.read.counts = 50)
+kk = which(colnames(design.matrix) == "factor.condition")
+res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 20)
 
 #plot(design.matrix$totals, norms, log="xy", xlab = 'library size', ylab="size factors calculated with PRC-unrelated regions")
 
@@ -265,12 +279,38 @@ res = DB.analysis(counts, design.matrix[, kk], size.factors = NULL, Threshold.re
 dev.off()
 
 ##########################################
-# DB analysis using DESeq2 
+# calculate the rpkm and remove the batch difference
 ##########################################
-if(run.DB.using.DESeq2.Save.counts){
-  
-  dds = res;
+batch.removal = TRUE
+if(batch.removal){
+  dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ factor.condition)
+  #dds <- dds[ rowSums(counts(dds)) > 20, ]
+  sizeFactors(dds) = sizeFactors(res)
   fpm = fpm(dds, robust = TRUE)
+  rownames(fpm) = annot$GeneID
+  
+  fpkm = fpm/annot$Length*10^3
+  
+  xx = log2(fpkm)
+  
+  # reorder the samples
+  o1 = order(as.numeric(gsub("min", '',design.matrix$condition)), design.matrix$factor)
+  design.matrix = design.matrix[o1, ]
+  xx = xx[, o1]
+  
+  cat('remove the batch effect using ComBat \n')
+  require("sva")
+  
+  design.matrix$batch = NA
+  design.matrix$batch[grep('738', design.matrix$file.name)] = 2
+  design.matrix$batch[grep('713', design.matrix$file.name)] = 1
+  
+  batch = design.matrix$batch;
+  design.tokeep = design.matrix
+  
+  mod = model.matrix(~ as.factor(factor.condition), data = design.tokeep);
+  
+  yy = ComBat(dat=xx, batch=batch, mod=mod, par.prior=TRUE, ref.batch = 2)
   
   dds = estimateDispersions(dds, fitType = "parametric")
   par(cex = 1.0, las = 1, mgp = c(2,0.2,0), mar = c(3,2,2,0.2), tcl = -0.3)

@@ -4,15 +4,22 @@
 ##############
 # all abosute paths here
 OUT="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/heatmaps"
-DIR_bw="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge"
+#DIR_bw="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge"
+DIR_bw='/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/bigWigs_PE_log2'
 DIR_peak="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups"
 out0="atacSeq_tbx_peakGroups"
 
 cwd=`pwd`
 
-ffs="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/sorted.2to8cell.stage_0min_73805.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_90min_71327.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_90min_73807.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_90min_71328.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_90min_73806.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_200min_71329.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_200min_73809.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_200min_71330.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_200min_73808.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_330min_71331.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABa_330min_73811.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_330min_71332.bw /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge/ABp_330min_73810.bw"
+ffs="${DIR_bw}/sorted.2to8cell.stage_0min_73805.bw \
+${DIR_bw}/ABa_90min_71327.bw ${DIR_bw}/ABa_90min_73807.bw \
+${DIR_bw}/ABp_90min_71328.bw ${DIR_bw}/ABp_90min_73806.bw \
+${DIR_bw}/ABa_200min_71329.bw ${DIR_bw}/ABa_200min_73809.bw \
+${DIR_bw}/ABp_200min_71330.bw ${DIR_bw}/ABp_200min_73808.bw \
+${DIR_bw}/ABa_330min_71331.bw ${DIR_bw}/ABa_330min_73811.bw \
+${DIR_bw}/ABp_330min_71332.bw ${DIR_bw}/ABp_330min_73810.bw"
 
-peak="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_shared.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_unique.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_shared.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABp.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/ABa_unique.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/ABp_unique.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/ABa_ABp_shared.bed"
+peak="${DIR_peak}/early_ABa_ABp_pooledPeaks.bed"
 
 
 #`ls ${DIR_bw}/*.bw|grep tbx_merged` "
@@ -33,7 +40,7 @@ mkdir -p ${OUT}/logs;
 ## make one big heatmap with defined grouped genomic regions in bed 
 matrix_name="${out0}_matrix4heatmap.gz"
 matrix2save="${out0}_matrix4save.txt"
-heatmap="${out0}_heatmap_profile_RPKM"
+heatmap="${out0}_heatmap_profile_log2RPKM_all_kmean10"
 #exit
 cd $OUT
 
@@ -67,7 +74,8 @@ plotHeatmap -m "$matrix_name" --colorMap RdBu \
 --sortRegions descend --sortUsing max -o ${heatmap}.pdf \
 --heatmapHeight 16 \
 --heatmapWidth 2 \
---refPointLabel peak
+--refPointLabel peak \
+--kmeans 10
 
 # plotProfile -m "$matrix_name" -o ${heatmap}.png --plotHeight 12 --plotWidth 15 --colors green blue orange red
 

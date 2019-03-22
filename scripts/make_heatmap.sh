@@ -7,16 +7,16 @@ OUT="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results
 #DIR_bw="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/bigWigs_PE_toMerge"
 DIR_bw='/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/bigWigs_PE_log2'
 DIR_peak="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups"
-out0="atacSeq_tbx_peakGroups"
+out0="atacseq_allPeak"
 
 cwd=`pwd`
 
 ffs="${DIR_bw}/sorted.2to8cell.stage_0min_73805.bw \
 ${DIR_bw}/ABa_90min_71327.bw ${DIR_bw}/ABa_90min_73807.bw \
-${DIR_bw}/ABp_90min_71328.bw ${DIR_bw}/ABp_90min_73806.bw \
 ${DIR_bw}/ABa_200min_71329.bw ${DIR_bw}/ABa_200min_73809.bw \
-${DIR_bw}/ABp_200min_71330.bw ${DIR_bw}/ABp_200min_73808.bw \
 ${DIR_bw}/ABa_330min_71331.bw ${DIR_bw}/ABa_330min_73811.bw \
+${DIR_bw}/ABp_90min_71328.bw ${DIR_bw}/ABp_90min_73806.bw \
+${DIR_bw}/ABp_200min_71330.bw ${DIR_bw}/ABp_200min_73808.bw \
 ${DIR_bw}/ABp_330min_71332.bw ${DIR_bw}/ABp_330min_73810.bw"
 
 peak="${DIR_peak}/early_ABa_ABp_pooledPeaks.bed"

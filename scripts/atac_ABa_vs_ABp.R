@@ -48,6 +48,7 @@ if(manual.modifySampleInfos){
 
 cat("-- import peak files as GRanges objects \n")
 peaks.list = c()
+peaks.all = NULL
 for(n in 1:nrow(design.matrix)){
   #n = 14
   cat(n, '--', design.matrix$factor.condition[n], ":",  design.matrix$file.path[n],  '\n')
@@ -56,8 +57,15 @@ for(n in 1:nrow(design.matrix)){
   if(seqlevelsStyle(xx) != "UCSC") seqlevelsStyle(xx) = "UCSC";
   
   peaks.list = c(peaks.list, xx)
-  #eval(parse(text = paste0("pp.", n, " = xx")))
+  if(n==1) {
+    peaks.all = xx; 
+  }else{
+    peaks.all = union(peaks.all, xx, ignore.strand = TRUE)
+  }
 }
+
+peaks.all = reduce(peaks.all)
+export(peaks.all, con = paste0("../results/peakGroups/early_ABa_ABp_pooledPeaks.bed"))
 
 ###############################
 # peak overlapping checking
@@ -81,7 +89,7 @@ dev.off()
 ########################################################
 library(rtracklayer)
 
-sels = which(design.matrix$condition != "330min" & design.matrix$factor != 'tbx')
+sels = which(design.matrix$condition != "330min" & design.matrix$factor != 'tbx' & design.matrix$condition != "200min")
 design.sels = design.matrix[sels,  ]
 peaks.sels = peaks.list[sels]
 
@@ -106,14 +114,14 @@ for(fac in conds){
     if(length(peaks.merged) == 0) {
       peaks.merged = reduce(p10, ignore.strand = TRUE)
     }else{
-      peaks.merged = reduce(union(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
+      peaks.merged = reduce(intersect(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
     }
     cat(fac, ' -- all peaks :', length(xx), ' -- peaks <10-10: ', length(p10), ' -- merged peaks', length(peaks.merged), '\n')
   }
   peaks = c(peaks, peaks.merged)
 }
 
-pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_early_ABa_ABp.pdf"),
+pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_early_ABa_ABp_replicateOverlapPeaks.pdf"),
     width = 12, height = 8)
 source("functions_chipSeq.R") 
 

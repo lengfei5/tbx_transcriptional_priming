@@ -222,19 +222,21 @@ tableDir = paste0(resDir, "tables/")
 version.analysis = "_20190312"
 
 addBackground = TRUE
-run.featureCount.quantification = TRUE
+run.featureCount.quantification = FALSE
 run.pairwise.Comparison.DESeq2 = FALSE
 batch.removal = FALSE
-
 
 if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
 if(!dir.exists(tableDir)) system(paste0('mkdir -p ', tableDir))
 
 bam.files = list.files(path = DIR.bams, pattern = "*.bam$", full.names = TRUE)
+bam.files = bam.files[grep('tbx', bam.files, invert = TRUE)]
+
 peak.list = list.files(path = DIR.peaks, pattern = "*.bed", full.names = TRUE)
 
 # prepare peak regions and background
 peak.list = peak.list[grep("pooled|random", peak.list)]
+
 source("functions_chipSeq.R")
 if(addBackground){
   peaks = merge.peaks.macs2(peak.list[grep('random', peak.list, invert = TRUE)], merge.dist = NULL)
@@ -247,8 +249,9 @@ if(addBackground){
 source("functions_chipSeq.R")
 
 if(run.featureCount.quantification){
-  fc = quantify.signals.within.peaks(peaks, bam.list = bam.files)
-  fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files)
+  fc = quantify.signals.within.peaks(peaks, bam.list = bam.files, isPairedEnd = TRUE)
+  fc.bgs = quantify.signals.within.peaks(bgs, bam.list = bam.files, isPairedEnd = TRUE)
+  
   save(fc, fc.bgs, file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata")) 
 }else{
   load(file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
@@ -264,6 +267,9 @@ design.matrix$factor[grep("Abp", design.matrix$factor)] = "ABp"
 design.matrix$factor.condition = paste0(design.matrix$condition, "_", design.matrix$factor)
 design.matrix$sampleID = sapply(design.matrix$file.name, function(x) unlist(strsplit(gsub('.bam', '', x), "_"))[3])
 design.matrix$file.name = paste0(design.matrix$factor, "_", design.matrix$condition, "_", design.matrix$sampleID)
+design.matrix$batch = NA
+design.matrix$batch[grep('738', design.matrix$file.name)] = 2
+design.matrix$batch[grep('713', design.matrix$file.name)] = 1
 
 stat = fc$stat
 kk = which(stat$Status=="Assigned" | stat$Status== "Unassigned_NoFeatures")
@@ -283,8 +289,9 @@ pdfname = paste0(resDir, "Data_Qulity_Assessment_atacPeakSignals", version.analy
 pdf(pdfname, width = 16, height = 12)
 
 source("functions_chipSeq.R")
-kk = which(colnames(design.matrix) == "factor.condition")
-res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 20)
+kk = c(which(colnames(design.matrix) == "factor.condition"), which(colnames(design.matrix)=="batch"))
+#kk = which(colnames(design.matrix) == "factor.condition")
+res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 10)
 
 dev.off()
 

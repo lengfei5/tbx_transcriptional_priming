@@ -553,11 +553,6 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
   #corrplot(M, method="circle", type = 'upper', order="hclust")
   corrplot(M, method="ellipse", order="hclust", tl.cex=1.2, cl.cex=0.7, tl.col="black", addrect=ceiling(ncol(xx)/2), col=col1(100), rect.col=c('green'), rect.lwd=2.0)
   
-  
-  #colnames(fpm) = paste(colnames(fpm), '.fpm', sep='')
-  #if(nrow(dds)<1000) {vsd =  rlog(dds, blind = FALSE)
-  #}else{vsd <- vst(dds, blind = FALSE)}
-  
   df <- bind_rows(
     as_data_frame(log2(counts(dds, normalized=TRUE)[, 1:2]+1)) %>%
       mutate(transformation = "log2(x + 1)"),
@@ -594,7 +589,7 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
     #p = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=condition, shape=time)) + geom_point(size=3)
     #p + geom_text(hjust = 0.5, nudge_y = 0.1, size=2.5) 
     ggp = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=conds)) + geom_point(size=3) +
-      geom_text(hjust = 0.7, nudge_y = 1, size=2.5)  
+      geom_text(hjust = 0.3, nudge_y = 1, size=2.5)  
     plot(ggp);
   }
   

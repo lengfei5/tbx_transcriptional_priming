@@ -931,7 +931,7 @@ merge.biologicalReplicates = function(pks)
   
 }
 
-clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TRUE)
+clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cutoff = 0.6, plot.grouping.result = TRUE)
 {
   library("cluster")
   library("factoextra")
@@ -946,13 +946,16 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TR
   x = data.matrix(pks);
   x  = x - 4.0 # background signal of 4 in log2 scale
   x[which(x<0)] = 0
+  #x = t(apply(x, 1, function(x) x/max(x, na.rm = TRUE)))
   
   x[which(rownames(x) == lsy6.peak), ]
   
   means = apply(x, 1, mean)
   sds = apply(x, 1, sd)
   
-  jj = which(sds < 0.5 | means < 0.5) # regions with low fold changes and low variance were considered no-changing
+  plot(means, sds, cex = 0.2); abline(h=sd.cutoff, col = 'red', lwd=1.5)
+  
+  jj = which(sds < 0.7) # regions with low fold changes and low variance were considered no-changing
   grps.all[jj] = 0
   
   my_data = x[-jj, ]
@@ -965,26 +968,43 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TR
   head(my_data, n = 3)
   my_data[which(rownames(my_data)==lsy6.peak),]
   
-  #res.dist <- get_dist(my_data, stand = TRUE, method = "euclidean")
-  
-  #library("factoextra")
-  fviz_nbclust(my_data, kmeans, method = "gap_stat", k.max = 12,  diss = dist(x, method = "euclidean"), nboot = 100)
-  
-  set.seed(123)
-  km.res <- kmeans(my_data, centers = 16, nstart = 25, iter.max = 50)
-  groups = km.res$cluster
-  
+  Kmeans.gasStat = FALSE
+  if(Kmeans.gasStat){
+    #library("factoextra")
+    fviz_nbclust(my_data, kmeans, method = "gap_stat", k.max = 12,  diss = dist(x, method = "euclidean"), nboot = 100)
+    
+    set.seed(123)
+    km.res <- kmeans(my_data, centers = 16, nstart = 25, iter.max = 50)
+    groups = km.res$cluster
+  }else{
+    dissimilarity <- 1 - cor(t(my_data))
+    distance <- as.dist(dissimilarity) 
+    #res.dist <- get_dist(my_data, stand = TRUE, method = "euclidean")
+    cluster.groups <- hclust(distance, method="complete") 
+    groups <- cutree(cluster.groups, h = (1-cor.cutoff))
+    nb.clusters = length(unique(groups))
+    cat("after clustering there are : ", length(unique(groups)), " groups \n")
+  }
   groups[which(names(groups)=="chrV_10647106_10647681")]
   my_data[which(rownames(my_data)=="chrV_10647106_10647681"), ]
   
   mm = match(names(groups), names(grps.all))
   grps.all[mm] = groups
   grps.all[which(names(grps.all)==lsy6.peak)]
+  cat(length(which(grps.all == grps.all[which(names(grps.all)==lsy6.peak)])), 'of peaks in the same cluster of lsy-6 peak \n')
   
   if(plot.grouping.result){
-    o.groups = order(groups)
+    #groups.sels = groups
+    nb.peaks.per.groups = table(groups)
+    groups.sels = which(nb.peaks.per.groups > 30)
+    newgroups = groups[!is.na(match(groups, groups.sels))]
+    #o1.groups = order(newgroups)
+    newgroups = newgroups[order(newgroups)]
+    
+    sels = match(names(newgroups), rownames(my_data))
+    
     colors <- colorRampPalette(rev(brewer.pal(9, "RdYlBu")) )(255)
-    pheatmap(my_data[o.groups,],
+    pheatmap(my_data[sels,],
            col = colors, cluster_rows = FALSE,
            cluster_cols = FALSE, show_rownames = FALSE,
            scale = 'none', labels_row = groups[o.groups],
@@ -1014,12 +1034,7 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TR
   #rownames(sampleDistMatrix) <- paste( vsd$dex, vsd$cell, sep = " - " )
   #colnames(sampleDistMatrix) <- NULL
   
-  #cluster.groups <- hclust(distance, method="complete") 
-  #groups <- cutree(cluster.groups, h = (1-cor.cutoff))
-  #nb.clusters = length(unique(groups))
-  
-  
-  #cat("after clustering there are : ", length(unique(groups)), " new groups \n")
+ 
   
   # if(plot.grouping.result){
   #   #cutoff = 0.8;
@@ -1051,7 +1066,7 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TR
   #   }
   # }
   
-  return(pks)
+  return(grps.all)
   
 }
 

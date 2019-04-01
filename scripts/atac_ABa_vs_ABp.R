@@ -416,8 +416,19 @@ if(run.pairwise.Comparison.DESeq2){
     pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
     
     source('functions_chipSeq.R')
-    pks = clustering.peak.signals(pks, sd.cutoff = 0.7, plot.grouping.result = TRUE)
+    cor.cutoff = 0.6 
+    pdfname = paste0(resDir, "clustering_atacseqPeaks_corCutoff_0.6", version.analysis, ".pdf")
+    pdf(pdfname, width = 16, height = 12)
     
+    groups = clustering.peak.signals(pks, sd.cutoff = 0.7, cor.cutoff = 0.6, plot.grouping.result = TRUE)
+    
+    dev.off()
+    
+    res = data.frame(res[, c(1:11)],  pks, groups, stringsAsFactors = FALSE)
+    
+    write.csv(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment_clustered.txt"),
+            col.names = TRUE, row.names = TRUE, quote = FALSE)
+    save(res, file = paste0(resDir, "atacPeakSignals_geneAssignment_clustered.Rdata"))
     
     
   }else{ # test a trendy package design for time series; but does not work well

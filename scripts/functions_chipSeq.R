@@ -256,7 +256,7 @@ PLOT.Quality.Controls.Summary = function(stat, index)
   
 }
 
-make.design.matrix.from.file.list = function(peak.files)
+make.design.matrix.from.file.list = function(peak.files, reOrder = FALSE)
 {
   cat("-- parsing design matrix\n")
   bname = basename(peak.files)
@@ -278,8 +278,11 @@ make.design.matrix.from.file.list = function(peak.files)
   design.matrix = data.frame(peak.files, bname, design, stringsAsFactors = FALSE)
   
   colnames(design.matrix) = c('file.path', 'file.name', 'condition', 'factor')
-  design.matrix = design.matrix[with(design.matrix, order(factor, condition)), ];
   
+  if(reOrder){
+    design.matrix = design.matrix[with(design.matrix, order(factor, condition)), ];
+  }
+
   factor.condition = paste0(design.matrix$factor, '_', design.matrix$condition)
   design.matrix = data.frame(design.matrix, factor.condition, stringsAsFactors = FALSE)
   
@@ -497,7 +500,6 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
     #counts = counts[, newO]
     
     dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ conds)
-    
     conditions = design.matrix$conds; 
   }else{
     conds = factor(paste0(colnames(design.matrix), collapse = " + "))
@@ -559,7 +561,7 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
     #as_data_frame(assay(rld)[, 1:2]) %>% mutate(transformation = "rlog"),
     as_data_frame(assay(vsd)[, 1:2]) %>% mutate(transformation = "vst"))
   
-  colnames(df)[1:2] <- c("x", "y")  
+  colnames(df)[1:2] <- c("x", "y")
   vsd.transform=ggplot(df, aes(x = x, y = y)) + geom_hex(bins = 80) +
     coord_fixed() + facet_grid( . ~ transformation)
   #print(vsd.transform)
@@ -575,9 +577,8 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
            clustering_distance_cols = sampleDists,
            col = colors)
   #plot(distClustering)
-  
-  if(batch){
-    pca=plotPCA(vsd, intgroup = c('batch', 'cell'), returnData=FALSE)
+  if(ncol(design.matrix)>1){
+    pca=plotPCA(vsd, intgroup = c(colnames(design.matrix)), returnData=FALSE)
   }else{
     pca=plotPCA(vsd, intgroup = c('conds'), returnData=FALSE)
   }
@@ -585,12 +586,43 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
   
   Show.sample.names.PCA.Clusters = TRUE
   if(Show.sample.names.PCA.Clusters){
-    pca2save = as.data.frame(plotPCA(vsd, intgroup =c('conds'), returnData = TRUE))
-    #p = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=condition, shape=time)) + geom_point(size=3)
-    #p + geom_text(hjust = 0.5, nudge_y = 0.1, size=2.5) 
-    ggp = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=conds)) + geom_point(size=3) +
-      geom_text(hjust = 0.3, nudge_y = 1, size=2.5)  
-    plot(ggp);
+    if(ncol(design.matrix) == 1){
+      pca2save = as.data.frame(plotPCA(vsd, intgroup =c('conds'), returnData = TRUE))
+      #p = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=condition, shape=time)) + geom_point(size=3)
+      #p + geom_text(hjust = 0.5, nudge_y = 0.1, size=2.5) 
+      ggp = ggplot(data=pca2save, aes(PC1, PC2, label = name, color=conds)) + geom_point(size=3) +
+        geom_text(hjust = 0.3, nudge_y = 0.5, size=2.5)
+      plot(ggp);
+    }else{
+      if(!batch){
+        pca2save = as.data.frame(plotPCA(vsd, intgroup =c(colnames(design.matrix)), returnData = TRUE))
+        conditions = apply(design.matrix, 1, function(x) {paste0(x, collapse = "_")})
+        pca2save = data.frame(pca2save, conditions, stringsAsFactors = FALSE)
+        
+        ggp = ggplot(data=pca2save, aes(PC1, PC2, label = name, col = conditions)) + geom_point(size=3) +
+          geom_text(hjust = 0.3, nudge_y = 0.5, size=2.5)
+        plot(ggp)
+      }else{
+        pca2save = as.data.frame(plotPCA(vsd, intgroup =c(colnames(design.matrix)), returnData = TRUE))
+        
+        jj = which(colnames(design.matrix)=='batch')
+        if(length(jj)==0){
+          cat('Error: no batch colunm found in design matrix \n')
+        }else{
+          if(ncol(design.matrix) == 2){
+            conditions = factor(setdiff(colnames(design.matrix), 'batch'))
+            pca2save = data.frame(pca2save, stringsAsFactors = TRUE)
+          }else{
+            conditions = apply(design.matrix[,-jj], 1, function(x) {paste0(x, collapse = "_")})
+            pca2save = data.frame(pca2save, conditions, stringsAsFactors = TRUE)
+          }
+          pca2save$batch = factor(as.character(pca2save$batch))
+          eval(parse(text = paste0("ggp = ggplot(data=pca2save, aes(PC1, PC2, label = name, col =", conditions, ", shape = batch)) + geom_point(size=3) +
+            geom_text(hjust = 0.3, nudge_y = 0.5, size=2.5)")))
+          plot(ggp)
+        } 
+      }
+    }
   }
   
   ###  pairwise correlation and fitting (to chek if there is batch effect)
@@ -600,7 +632,7 @@ DB.analysis= function(counts, design.matrix, size.factors = NULL, batch = FALSE,
   yy[which(yy==0)] = NA;
   yy = log2(yy)
   
-  pairs(yy, lower.panel=NULL, upper.panel=panel.fitting)
+  pairs(yy[, order(design.matrix$batch)], lower.panel=NULL, upper.panel=panel.fitting)
   #pairs(assay(vsd), lower.panel = NULL, upper.panel = panel.fitting)
   
   #cc.partA = c("AN312", "515D10", "515D10H3")
@@ -640,7 +672,7 @@ panel.cor <- function(x, y, digits=2, prefix="", cex.cor)
   text(.8, .8, Signif, cex=cex, col=2) 
 }
 
-panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.8, col='black') 
+panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.05, col='black') 
 {
   #x = yy[,1];y=yy[,2];
   #kk = which(x>0 & y>0); x=x[kk];y=y[kk]
@@ -650,11 +682,11 @@ panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.8, col='black
   R = cor(x, y, use="na.or.complete", method='pearson')
   text(lims[2]*0.2, lims[2]*0.9, paste0('R = ', signif(R, d=2)), cex=0.5, col='red')
   jj = which(!is.na(x) & !is.na(y))
-  fit = lm(y[jj] ~ x[jj])
+  #fit = lm(y[jj] ~ x[jj])
   #slope=summary(fit)$coefficients[1]
-  slope = fit$coefficients[2]
-  intercept = fit$coefficients[1]
-  pval=summary(fit)$coefficients[4]
+  #slope = fit$coefficients[2]
+  #intercept = fit$coefficients[1]
+  #pval=summary(fit)$coefficients[4]
   #abline(intercept, slope, lwd=1.2, col='darkblue', lty=3)
   #text(lims[2]*0.1, lims[2]*0.7, paste0('slop = ', signif(slope, d=2)), cex=1., col='blue')
   #text(lims[2]*0.1, lims[2]*0.6, paste0('pval = ', signif(pval, d=2)), cex=1., col='blue')
@@ -663,6 +695,74 @@ panel.fitting = function (x, y, bg = NA, pch = par("pch"), cex = 0.8, col='black
   #lines(stats::lowess(x[ok], y[ok], f = span, iter = iter), 
   #        col = col.smooth, ...)
 }
+
+
+##########################################
+# remove batch and check batch removal  
+##########################################
+remove.batch.atacseq = function(cpm, design.matrix, method = "combat")
+{
+  # cpm = xx
+  #logcpm = log2(cpm + 2^-6)
+  
+  if(method == 'limma'){
+    cat('remove the batch effect using limma \n')
+    require('limma')
+    #design.tokeep = design.matrix
+    #design.tokeep$tissue.cell[which(design.tokeep$treatment == "untreated")] = 'whole.body'
+    #design.tokeep$tissue.cell[which(design.tokeep$genotype=="N2" & design.tokeep$treatment=="treated")] = "background"
+    batch = design.matrix$batch
+    design.tokeep<-model.matrix(~ 0 + factor.condition,  data = design.matrix)
+    cpm.bc = removeBatchEffect(cpm, batch = design.matrix$batch, design = design.tokeep)
+  }
+  
+  if(method == 'combat'){
+    ## here we use the combat to remove the batch effect 
+    ## the combat requires the log2cpm
+    cat('remove the batch effect using ComBat \n')
+    require("sva")
+    # example from the ComBat function in the R package 'sva'
+    TEST.example = FALSE
+    if(TEST.example){
+      library(bladderbatch)
+      data(bladderdata)
+      dat <- bladderEset[1:50,]
+      pheno = pData(dat)
+      edata = exprs(dat)
+      batch = pheno$batch
+      mod = model.matrix(~as.factor(cancer), data=pheno)
+      combat_edata3 = ComBat(dat=edata, batch=batch, mod=mod, par.prior=TRUE, ref.batch=3)
+    }
+    
+    batch = design.matrix$batch;
+    design.tokeep = design.matrix
+    design.tokeep$tissue.cell[which(design.tokeep$treatment == "untreated")] = 'whole.body'
+    design.tokeep$tissue.cell[which(design.tokeep$genotype=="N2" & design.tokeep$treatment=="treated")] = "background"
+    mod = model.matrix(~ as.factor(tissue.cell), data = design.tokeep);
+    #conds = data.frame(rep(c("untreated", "treated"), ncol(cpm)/2))
+    #colnames(conds) = 'treatment'
+    #mod = model.matrix(~ as.factor(treatment), conds)
+    logcpm.bc = ComBat(dat=logcpm, batch=batch, mod=mod, par.prior=TRUE, ref.batch = NULL)
+  }
+  
+  sds = apply(cpm.bc, 1, sd)
+  ranks = order(-sds)
+  jj = which(ranks<=2000)
+  
+  pca = prcomp(t((cpm.bc[jj,])), scale. = TRUE, center = TRUE)
+  pca2save = data.frame(pca$x, condition=design.matrix$factor.condition, 
+                        batch = design.matrix$batch, 
+                        name=colnames(cpm))
+  ggp = ggplot(data=pca2save, aes(PC1, PC2, label = batch, color = condition)) + geom_point(size=4) +
+    geom_text(hjust = 0.1, nudge_y = 0.6, size=5) +
+    ggtitle(paste0("PCA - "))
+  plot(ggp);
+  
+  pairs(cpm.bc[, order(design.matrix$batch)], lower.panel=NULL, upper.panel=panel.fitting)
+  
+  return(logcpm.bc)
+}
+
 
 ########################################################
 ########################################################
@@ -805,5 +905,154 @@ Peak.GPS = function(pp)
   return(c(dist.tss, test))
 }
 
+##########################################
+# function to group peak signals 
+##########################################
+merge.biologicalReplicates = function(pks)
+{
+  sampleNames = colnames(pks)
+  sampleNames = sapply(sampleNames, function(x) paste(unlist(strsplit(as.character(x), "_"))[1:2], collapse = "_"))
+  names.uniq = unique(sampleNames)
+  
+  merged = matrix(NA, ncol = length(names.uniq), nrow = nrow(pks))
+  rownames(merged) = rownames(pks)
+  colnames(merged) = names.uniq
+  for(n in 1:length(names.uniq))
+  {
+    kk = which(sampleNames == names.uniq[n])
+    if(length(kk)==1){
+      merged[,n] = as.numeric(pks[,kk])
+    }else{
+      merged[,n] = as.numeric(apply(pks[,kk], 1, mean))
+    }
+  }
+  
+  return(merged)
+  
+}
+
+clustering.peak.signals = function(x, sd.cutoff = 0.7, plot.grouping.result = TRUE)
+{
+  library("cluster")
+  library("factoextra")
+  library("magrittr")
+  library("pheatmap");
+  library("RColorBrewer");
+  
+  grps.all = rep(NA, nrow(pks))
+  names(grps.all) = rownames(pks)
+  lsy6.peak = "chrV_10647106_10647681"
+  
+  x = data.matrix(pks);
+  x  = x - 4.0 # background signal of 4 in log2 scale
+  x[which(x<0)] = 0
+  
+  x[which(rownames(x) == lsy6.peak), ]
+  
+  means = apply(x, 1, mean)
+  sds = apply(x, 1, sd)
+  
+  jj = which(sds < 0.5 | means < 0.5) # regions with low fold changes and low variance were considered no-changing
+  grps.all[jj] = 0
+  
+  my_data = x[-jj, ]
+  my_data = t(apply(my_data, 1, function(x) x/max(x, na.rm = TRUE)))
+  #my_data <- x[-jj, ] %>%
+  #  na.omit() %>%          # Remove missing values (NA)
+  #  scale()                # Scale variables
+  
+  # View the firt 3 rows
+  head(my_data, n = 3)
+  my_data[which(rownames(my_data)==lsy6.peak),]
+  
+  #res.dist <- get_dist(my_data, stand = TRUE, method = "euclidean")
+  
+  #library("factoextra")
+  fviz_nbclust(my_data, kmeans, method = "gap_stat", k.max = 12,  diss = dist(x, method = "euclidean"), nboot = 100)
+  
+  set.seed(123)
+  km.res <- kmeans(my_data, centers = 16, nstart = 25, iter.max = 50)
+  groups = km.res$cluster
+  
+  groups[which(names(groups)=="chrV_10647106_10647681")]
+  my_data[which(rownames(my_data)=="chrV_10647106_10647681"), ]
+  
+  mm = match(names(groups), names(grps.all))
+  grps.all[mm] = groups
+  grps.all[which(names(grps.all)==lsy6.peak)]
+  
+  if(plot.grouping.result){
+    o.groups = order(groups)
+    colors <- colorRampPalette(rev(brewer.pal(9, "RdYlBu")) )(255)
+    pheatmap(my_data[o.groups,],
+           col = colors, cluster_rows = FALSE,
+           cluster_cols = FALSE, show_rownames = FALSE,
+           scale = 'none', labels_row = groups[o.groups],
+           main = paste0('lsy-6 peak in cluster ', 
+                         groups[which(names(groups)=="chrV_10647106_10647681")], 
+                         ' out of ', length(unique(groups)), ' clusters')
+           )
+    
+    group2check = grps.all[which(names(grps.all)==lsy6.peak)]
+    kk = which(grps.all==group2check)
+    
+    df = x[kk, ]
+    df = t(apply(df, 1, function(x) x/max(x, na.rm = TRUE)))
+    df = data.frame(df)
+    boxplot(df)
+    #matplot(t(df))
+    
+    # p <- ggplot(df, aes(x=dose, y=len)) + 
+    #     geom_dotplot(binaxis='y', stackdir='center')
+    # p + stat_summary(fun.data=mean_sdl, fun.args = list(mult=1), 
+    #     geom="errorbar", color="red", width=0.2) +
+    #     stat_summary(fun.y=mean, geom="point", color="red")
+    
+  }
+  
+  #sampleDistMatrix <- as.matrix( sampleDists)
+  #rownames(sampleDistMatrix) <- paste( vsd$dex, vsd$cell, sep = " - " )
+  #colnames(sampleDistMatrix) <- NULL
+  
+  #cluster.groups <- hclust(distance, method="complete") 
+  #groups <- cutree(cluster.groups, h = (1-cor.cutoff))
+  #nb.clusters = length(unique(groups))
+  
+  
+  #cat("after clustering there are : ", length(unique(groups)), " new groups \n")
+  
+  # if(plot.grouping.result){
+  #   #cutoff = 0.8;
+  #   plot(cluster.groups, main="Dissimilarity = 1 - Correlation", xlab="") 
+  #   rect.hclust(cluster.groups, k = length(unique(groups)), border="red") 
+  # }
+  
+  # regroup proportion matrix
+  # newdata = matrix(NA, ncol = nb.clusters, nrow = nrow(x))
+  # rownames(newdata) = rownames(x)
+  # colnames(newdata) = rep('X', ncol(newdata))
+  # 
+  # for(n in 1:nb.clusters)
+  # {
+  #   # n = 4
+  #   kk = which(groups == n)
+  #   cat("cluster", n, "-- nb of neuron groups --", length(kk), "--", names(groups)[kk],"\n")
+  #   
+  #   if(length(kk)==0){
+  #     cat("Error-- no neuron classes found \n")
+  #   }else{
+  #     if(length(kk)>1){
+  #       newdata[,n] = apply(x[, kk], 1, sum)
+  #       colnames(newdata)[n] = paste0(names(groups)[kk], collapse = ".")
+  #     }else{
+  #       newdata[,n] = x[, kk]
+  #       colnames(newdata)[n] = names(groups)[kk];
+  #     }
+  #   }
+  # }
+  
+  return(pks)
+  
+}
 
 

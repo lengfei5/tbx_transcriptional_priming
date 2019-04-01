@@ -223,7 +223,8 @@ version.analysis = "_20190312"
 
 addBackground = TRUE
 run.featureCount.quantification = FALSE
-run.pairwise.Comparison.DESeq2 = FALSE
+run.peak2geneAssignment = FALSE
+
 batch.removal = FALSE
 
 if(!dir.exists(resDir)) system(paste0('mkdir -p ', resDir))
@@ -257,9 +258,15 @@ if(run.featureCount.quantification){
   load(file = paste0(resDir, "counts_withinPeaksAndBackground_byfeatureCount.Rdata"))
 }
 
-bams = bam.files;
-bams[grep('tbx_merged', bams)] = "../data/Bams/tbx_90min_merged.bam"  
+##########################################
+# design matrix
+##########################################
+source("functions_chipSeq.R")
+bams = fc$targets;
+bams = gsub('X.Volumes.groups.cochella.jiwang.Projects.Ariane.tbx_transcriptional_priming.data.Bams.', '', bams)
+#bams[grep('tbx_merged', bams)] = "../data/Bams/tbx_90min_merged.bam"
 design.matrix = make.design.matrix.from.file.list(bams)
+
 design.matrix$condition[which(design.matrix$condition=="60min")] = "90min"
 design.matrix$condition[which(design.matrix$condition=="140min")] = "200min"
 design.matrix$factor[grep("Aba", design.matrix$factor)] = "ABa"
@@ -291,59 +298,86 @@ pdf(pdfname, width = 16, height = 12)
 source("functions_chipSeq.R")
 kk = c(which(colnames(design.matrix) == "factor.condition"), which(colnames(design.matrix)=="batch"))
 #kk = which(colnames(design.matrix) == "factor.condition")
-res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 10)
+res = DB.analysis(counts[index.peaks, ], design.matrix[, kk], Threshold.read.counts = 100, batch = TRUE, size.factors = ss/median(ss))
 
 dev.off()
 
 ##########################################
 # calculate the rpkm and remove the batch difference
 ##########################################
-dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ factor.condition)
+dds = DESeqDataSetFromMatrix(counts[index.peaks,], DataFrame(design.matrix), design = ~ factor.condition)
 #dds <- dds[ rowSums(counts(dds)) > 20, ]
 sizeFactors(dds) = sizeFactors(res)
 fpm = fpm(dds, robust = TRUE)
-rownames(fpm) = annot$GeneID
+rownames(fpm) = annot$GeneID[index.peaks]
 
-fpkm = fpm/annot$Length*10^3
+fpkm = fpm/annot$Length[index.peaks]*10^3
 
 xx = log2(fpkm)
+xx[which(rownames(xx)=='chrV_10647106_10647681'), ]
 
+if(batch.removal){
+  
+  cat('remove the batch effect using limma \n')
+  require('limma')
+  #cat('remove the batch effect using ComBat \n')
+  #require("sva")
+  
+  jj = which(design.matrix$factor == 'ABa' | design.matrix$factor == 'ABp')
+  
+  pdfname = paste0(resDir, "batchCorrection_limma", version.analysis, ".pdf")
+  pdf(pdfname, width = 16, height = 12)
+  
+  source("functions_chipSeq.R")
+  bc = remove.batch.atacseq(xx[,jj], design.matrix[jj, ], method = 'limma')
+  
+  dev.off()
+  
+}
+
+# peak2gene assignment
+if(run.peak2geneAssignment){
+  peak.coord = data.frame(t(sapply(rownames(xx), function(x) unlist(strsplit(gsub("bg_", "",x), "_")))))
+  
+  source('functions_chipSeq.R')
+  res.wsize.2kb = customizedAssignment.peak2gene(peak.coord = peak.coord, window.size=2000, annotation='wormbase')
+  
+  res.wsize.2kb = data.frame(peak.coord, res.wsize.2kb, stringsAsFactors = FALSE)
+  rownames(res.wsize.2kb) = rownames(peak.coord)
+  
+  save(res.wsize.2kb, file = paste0(resDir, "peak2gene_assignment_4atacPeaks.Rdata")) 
+}else{
+  load(file = paste0(resDir, "peak2gene_assignment_4atacPeaks.Rdata")) 
+}
+ 
 # reorder the samples
-o1 = order(as.numeric(gsub("min", '',design.matrix$condition)), design.matrix$factor)
+o1 = order(design.matrix$factor, as.numeric(gsub("min", '',design.matrix$condition)))
+time0 = grep('sorted.2to8cell', design.matrix$factor)
+o1 = c(time0, setdiff(o1, time0) )
 design.matrix = design.matrix[o1, ]
 xx = xx[, o1]
 
-# peak2gene assignment
-peak.coord = data.frame(t(sapply(rownames(xx), function(x) unlist(strsplit(gsub("bg_", "",x), "_")))))
-
-source('functions_chipSeq.R')
-res.wsize.2kb = customizedAssignment.peak2gene(peak.coord = peak.coord, window.size=2000, annotation='wormbase')
-
 #save(pp, res.wsize.2kb, file=paste0('Rdata/Merged_Peaks_macs2_p_5_filtered_N2', version.analysis, 'gene_assignment_WBcel235.Rdata'))
-res = res.wsize.2kb;
-res = data.frame(peak.coord,res, xx, stringsAsFactors = FALSE)
+#res = res.wsize.2kb;
+res = data.frame(res.wsize.2kb, xx, stringsAsFactors = FALSE)
 colnames(res)[c(1:3)] = c('peak.chr', 'peak.start', 'peak.end') 
 
-kk = grep('lsy-6', res$gene);
+#kk = grep('lsy-6', res$gene);
+res[which(rownames(res)=='chrV_10647106_10647681'),  grep('min_', colnames(res))]
+save(res, file = paste0(resDir, "atacPeakSignals_geneAssignment_allReplicates.Rdata"))
 
-write.table(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment.txt"), sep = "\t",
+write.csv(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment.txt"),
             col.names = TRUE, row.names = TRUE, quote = FALSE)
 
-if(batch.removal){
-  cat('remove the batch effect using ComBat \n')
-  require("sva")
-  
-  design.matrix$batch = NA
-  design.matrix$batch[grep('738', design.matrix$file.name)] = 2
-  design.matrix$batch[grep('713', design.matrix$file.name)] = 1
-  
-  jj = which(design.matrix$batch==1 | design.matrix$batch == 2)
-  batch = design.matrix$batch[jj];
-  design.tokeep = design.matrix[jj,]
-  mod = model.matrix(~ as.factor(factor.condition), data = design.tokeep);
-  yy = ComBat(dat=xx[,jj], batch=batch, mod=mod, par.prior=TRUE, ref.batch = 2)
-}
 
+########################################################
+########################################################
+# Section : clustering or pairwise comparisons using DESeq2 (not used here)
+# due to the complex design (lineage + time points)
+########################################################
+########################################################
+run.pairwise.Comparison.DESeq2 = FALSE
+determine.groups.by.clustering = TRUE
 
 if(run.pairwise.Comparison.DESeq2){
   dds = estimateDispersions(dds, fitType = "parametric")
@@ -360,23 +394,48 @@ if(run.pairwise.Comparison.DESeq2){
   summary(res2)
   res2 = as.data.frame(res2);
   
-  #pdfname = paste0(resDir, "results_DB_analysis_ChIPseq_", prot, version.analysis, ".pdf")
-  #pdf(pdfname, width = 12, height = 10)
-  
-  # plot(res1$, res2$log2FoldChange)
-  #plot(apply(fpm[, c(1, 2)], 1, mean), apply(fpm[, c(3, 4)], 1, mean), log='xy', cex=0.7, xlab='control', ylab= "UNC3866");
-  #abline(0, 1, col='red', lwd=2.0)
-  #plot(apply(fpm[, c(1, 2)], 1, mean), apply(fpm[, c(5, 6)], 1, mean), log='xy', cex=0.7, xlab= "control", ylab="UNC4976")
-  #abline(0, 1, col='red', lwd=2.0)
-  
-  #dev.off();
-  
   write.table(fpm, file = paste0(tableDir, "normalized_readCounts_for_", prot, version.analysis, ".txt"), sep = "\t",
               col.names = TRUE, row.names = TRUE, quote = FALSE)
   write.table(res1, file = paste0(tableDir, "DB_analysis_using_DESeq2_for_", prot, "_UNC3866_vs_Control",  version.analysis, ".txt"), sep = "\t",
               col.names = TRUE, row.names = TRUE, quote = FALSE)
   write.table(res2, file = paste0(tableDir, "DB_analysis_using_DESeq2_for_", prot, "_UNC4976_vs_Control", version.analysis, ".txt"), sep = "\t",
               col.names = TRUE, row.names = TRUE, quote = FALSE)
+  
+}else{
+  
+  load(file = paste0(resDir, "atacPeakSignals_geneAssignment_allReplicates.Rdata"))
+  
+  if(determine.groups.by.clustering){
+    
+    pks = as.matrix(res[, grep('min_', colnames(res))])
+    pks[which(pks==-Inf)] = 0
+    pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
+    
+    source('functions_chipSeq.R')
+    pks = merge.biologicalReplicates(pks)
+    pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
+    
+    source('functions_chipSeq.R')
+    pks = clustering.peak.signals(pks, sd.cutoff = 0.7, plot.grouping.result = TRUE)
+    
+    
+    
+  }else{ # test a trendy package design for time series; but does not work well
+    library(Trendy)
+    require(stats)
+    pks = as.matrix(res[, grep('min_', colnames(res))])
+    #time.vector = 1:ncol(pks)
+    time.vector <- c(1, rep(c(2:7), each=2))
+    names(time.vector) = colnames(pks)
+    
+    
+    xx <- trendy(Data = pks, tVectIn = time.vector, maxK=5, NCores = 6, minNumInSeg = 1, meanCut = 0)
+    
+    yy <- results(xx)
+    yy.top <- topTrendy(yy, adjR2Cut = 0.3)
+    yy.top$AdjustedR2
+    #res.trend2 <- trendHeatmap(res.top2)
+  }
   
 }
 

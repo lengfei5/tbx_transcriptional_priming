@@ -933,6 +933,9 @@ merge.biologicalReplicates = function(pks)
 
 clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cutoff = 0.6, plot.grouping.result = TRUE)
 {
+  ##########################################
+  # this function is to specifically discover patterns for atac-seq peaks in lineage and time points
+  ##########################################
   library("cluster")
   library("factoextra")
   library("magrittr")
@@ -943,39 +946,56 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cu
   names(grps.all) = rownames(pks)
   lsy6.peak = "chrV_10647106_10647681"
   
+  ## step 1: filter the peaks showing no changes for time points or lineages 
   x = data.matrix(pks);
-  x  = x - 4.0 # background signal of 4 in log2 scale
-  x[which(x<0)] = 0
-  #x = t(apply(x, 1, function(x) x/max(x, na.rm = TRUE)))
   
   x[which(rownames(x) == lsy6.peak), ]
   
-  means = apply(x, 1, mean)
+  means = apply(x, 1, median)
   sds = apply(x, 1, sd)
   
   plot(means, sds, cex = 0.2); abline(h=sd.cutoff, col = 'red', lwd=1.5)
   
-  jj = which(sds < 0.7) # regions with low fold changes and low variance were considered no-changing
-  grps.all[jj] = 0
+  jj = which(sds < sd.cutoff) # regions with low fold changes and low variance were considered no-changing
+  grps.all[jj] = -1
   
+  ## step 2 filter peaks showing changes across time points but with the same pattern for two lineages 
+  x = x[-jj, ]
+  
+  calculate.dist.for.ABa.ABp = function(x)
+  {
+    return(mean(abs(x[c(1:3)] - x[c(4:6)])))
+  }
+  
+  dist.abs = apply(x, 1, calculate.dist.for.ABa.ABp)
+  jj = which(dist.abs<0.25)
+  mm = match(names(dist.abs[jj]), names(grps.all))
+  grps.all[mm] = 0
+  
+  ## step 3: cluster the rest of peaks
   my_data = x[-jj, ]
-  my_data = t(apply(my_data, 1, function(x) x/max(x, na.rm = TRUE)))
+  #my_data = t(apply(my_data, 1, function(x) x/max(x, na.rm = TRUE)))
   #my_data <- x[-jj, ] %>%
   #  na.omit() %>%          # Remove missing values (NA)
   #  scale()                # Scale variables
   
   # View the firt 3 rows
   head(my_data, n = 3)
-  my_data[which(rownames(my_data)==lsy6.peak),]
+  my_data[which(rownames(my_data)==lsy6.peak), ]
+  my_data  = my_data - 4.0 # background signal of 4 in log2 scale
+  my_data[which(my_data<0)] = 0
+  #x = t(apply(x, 1, function(x) x/max(x, na.rm = TRUE)))
+  my_data[which(rownames(my_data)==lsy6.peak), ]
   
-  Kmeans.gasStat = FALSE
+  Kmeans.gasStat = TRUE
   if(Kmeans.gasStat){
     #library("factoextra")
-    fviz_nbclust(my_data, kmeans, method = "gap_stat", k.max = 12,  diss = dist(x, method = "euclidean"), nboot = 100)
+    fviz_nbclust(my_data, kmeans, method = "gap_stat", k.max = 20,  diss = dist(x, method = "euclidean"), nboot = 100)
     
     set.seed(123)
-    km.res <- kmeans(my_data, centers = 16, nstart = 25, iter.max = 50)
+    km.res <- kmeans(my_data, centers = 10, nstart = 25, iter.max = 50)
     groups = km.res$cluster
+    
   }else{
     dissimilarity <- 1 - cor(t(my_data))
     distance <- as.dist(dissimilarity) 
@@ -985,6 +1005,7 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cu
     nb.clusters = length(unique(groups))
     cat("after clustering there are : ", length(unique(groups)), " groups \n")
   }
+  
   groups[which(names(groups)=="chrV_10647106_10647681")]
   my_data[which(rownames(my_data)=="chrV_10647106_10647681"), ]
   
@@ -1007,7 +1028,7 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cu
     pheatmap(my_data[sels,],
            col = colors, cluster_rows = FALSE,
            cluster_cols = FALSE, show_rownames = FALSE,
-           scale = 'none', labels_row = groups[o.groups],
+           scale = 'row',
            main = paste0('lsy-6 peak in cluster ', 
                          groups[which(names(groups)=="chrV_10647106_10647681")], 
                          ' out of ', length(unique(groups)), ' clusters')
@@ -1016,7 +1037,7 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cu
     group2check = grps.all[which(names(grps.all)==lsy6.peak)]
     kk = which(grps.all==group2check)
     
-    df = x[kk, ]
+    df = pks[kk, ]
     df = t(apply(df, 1, function(x) x/max(x, na.rm = TRUE)))
     df = data.frame(df)
     boxplot(df)

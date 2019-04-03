@@ -410,6 +410,7 @@ if(run.pairwise.Comparison.DESeq2){
     pks = as.matrix(res[, grep('min_', colnames(res))])
     pks[which(pks==-Inf)] = 0
     pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
+    pks = pks[, -1]
     
     source('functions_chipSeq.R')
     pks = merge.biologicalReplicates(pks)
@@ -438,7 +439,6 @@ if(run.pairwise.Comparison.DESeq2){
     #time.vector = 1:ncol(pks)
     time.vector <- c(1, rep(c(2:7), each=2))
     names(time.vector) = colnames(pks)
-    
     
     xx <- trendy(Data = pks, tVectIn = time.vector, maxK=5, NCores = 6, minNumInSeg = 1, meanCut = 0)
     

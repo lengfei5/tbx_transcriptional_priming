@@ -758,9 +758,9 @@ remove.batch.atacseq = function(cpm, design.matrix, method = "combat")
     ggtitle(paste0("PCA - "))
   plot(ggp);
   
-  pairs(cpm.bc[, order(design.matrix$batch)], lower.panel=NULL, upper.panel=panel.fitting)
+  #pairs(cpm.bc[, order(design.matrix$batch)], lower.panel=NULL, upper.panel=panel.fitting)
   
-  return(logcpm.bc)
+  return(cpm.bc)
 }
 
 
@@ -931,7 +931,8 @@ merge.biologicalReplicates = function(pks)
   
 }
 
-clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cutoff = 0.6, plot.grouping.result = TRUE)
+clustering.peak.signals = function(pks, design.matrix, sd.cutoff = 0.7, scale.data = TRUE, cor.cutoff = 0.6, plot.grouping.result = TRUE, 
+                                   preprocessing.limma = TRUE, batch.correction = FALSE)
 {
   ##########################################
   # this function is to specifically discover patterns for atac-seq peaks in lineage and time points
@@ -939,24 +940,48 @@ clustering.peak.signals = function(x, sd.cutoff = 0.7, scale.data = TRUE, cor.cu
   library("cluster")
   library("factoextra")
   library("magrittr")
-  library("pheatmap");
-  library("RColorBrewer");
+  library("pheatmap")
+  library("RColorBrewer")
+  require('limma')
   
   grps.all = rep(NA, nrow(pks))
   names(grps.all) = rownames(pks)
   lsy6.peak = "chrV_10647106_10647681"
   
+  ## batch correction with limma (does not change too much)
+  if(batch.correction){ 
+    #sds = apply(pks, 1, sd)
+    bc = remove.batch.atacseq(pks, design.matrix, method = 'limma')
+    pks = bc
+  }
+  pks[which(rownames(pks)== lsy6.peak), ]
+  
   ## step 1: filter the peaks showing no changes for time points or lineages 
-  x = data.matrix(pks);
+  if(preprocessing.limma){
+    library(splines)
+    times = as.numeric(gsub('min', '', design.matrix$condition))
+    X <- ns(times, df=2)
+    #Then fit separate curves for the control and treatment groups:
+    Group <- factor(design.matrix$factor)
+    design <- model.matrix(~Group*X)
+    fit <- lmFit(pks, design)
+    fit <- eBayes(fit)
+    
+    # define contrast and make selection
+    
+  }else{
+    x = data.matrix(pks);
+    
+    x[which(rownames(x) == lsy6.peak), ]
+    
+    means = apply(x, 1, median)
+    sds = apply(x, 1, sd)
+    
+    plot(means, sds, cex = 0.2); abline(h=sd.cutoff, col = 'red', lwd=1.5)
+    
+    jj = which(sds < sd.cutoff) # regions with low fold changes and low variance were considered no-changing
+  }
   
-  x[which(rownames(x) == lsy6.peak), ]
-  
-  means = apply(x, 1, median)
-  sds = apply(x, 1, sd)
-  
-  plot(means, sds, cex = 0.2); abline(h=sd.cutoff, col = 'red', lwd=1.5)
-  
-  jj = which(sds < sd.cutoff) # regions with low fold changes and low variance were considered no-changing
   grps.all[jj] = -1
   
   ## step 2 filter peaks showing changes across time points but with the same pattern for two lineages 

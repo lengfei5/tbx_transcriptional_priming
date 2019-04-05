@@ -65,6 +65,7 @@ for(n in 1:nrow(design.matrix)){
 }
 
 peaks.all = reduce(peaks.all)
+
 export(peaks.all, con = paste0("../results/peakGroups/early_ABa_ABp_pooledPeaks.bed"))
 
 ###############################
@@ -89,7 +90,8 @@ dev.off()
 ########################################################
 library(rtracklayer)
 
-sels = which(design.matrix$condition != "330min" & design.matrix$factor != 'tbx' & design.matrix$condition != "200min")
+#sels = which(design.matrix$condition != "330min" & design.matrix$factor != 'tbx' & design.matrix$condition != "200min")
+sels = which(design.matrix$factor.condition == '90min_ABa' | design.matrix$factor.condition == '90min_ABp')
 design.sels = design.matrix[sels,  ]
 peaks.sels = peaks.list[sels]
 
@@ -121,23 +123,22 @@ for(fac in conds){
   peaks = c(peaks, peaks.merged)
 }
 
-pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_early_ABa_ABp_replicateOverlapPeaks.pdf"),
+pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_ABa_ABp_replicateOverlapPeaks.pdf"),
     width = 12, height = 8)
 source("functions_chipSeq.R") 
 
-ol.peaks <- makeVennDiagram(peaks, NameOfPeaks=c('early', 'ABa', 'ABp'), connectedPeaks="keepAll", main='early.vs.ABa.vs.ABp')
+ol.peaks <- makeVennDiagram(peaks, NameOfPeaks=c('ABa', 'ABp'), connectedPeaks="keepAll", main='ABa.vs.ABp')
 
 v <- venn_cnt2venn(ol.peaks$vennCounts)
 try(plot(v))
 
 dev.off()
 
+##########################################
+# define 7 groups of peaks using ABa ABp and 2to8cell.stage 
+##########################################
 Define.Groups.peaks = FALSE
 if(Define.Groups.peaks){
-  
-  ##########################################
-  # define 7 groups of peaks using ABa ABp and 2to8cell.stage 
-  ##########################################
   names(peaks) = conds
   p.all = union(peaks[[1]], peaks[[2]], ignore.strand = TRUE)
   p.all = union(p.all, peaks[[3]], ignore.strand = TRUE)
@@ -364,7 +365,7 @@ colnames(res)[c(1:3)] = c('peak.chr', 'peak.start', 'peak.end')
 
 #kk = grep('lsy-6', res$gene);
 res[which(rownames(res)=='chrV_10647106_10647681'),  grep('min_', colnames(res))]
-save(res, file = paste0(resDir, "atacPeakSignals_geneAssignment_allReplicates.Rdata"))
+save(res, design.matrix, file = paste0(resDir, "atacPeakSignals_geneAssignment_allReplicates.Rdata"))
 
 write.csv(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment.txt"),
             col.names = TRUE, row.names = TRUE, quote = FALSE)
@@ -408,27 +409,34 @@ if(run.pairwise.Comparison.DESeq2){
   if(determine.groups.by.clustering){
     
     pks = as.matrix(res[, grep('min_', colnames(res))])
+    kk = apply(pks, 1, function(x) all(x == -Inf) )
+    pks = pks[!kk, ]
+    
     pks[which(pks==-Inf)] = 0
+    
     pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
     pks = pks[, -1]
-    
-    source('functions_chipSeq.R')
-    pks = merge.biologicalReplicates(pks)
     pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
+    design.matrix = design.matrix[match(colnames(pks), design.matrix$file.name), ]
     
-    source('functions_chipSeq.R')
-    cor.cutoff = 0.6 
-    pdfname = paste0(resDir, "clustering_atacseqPeaks_corCutoff_0.6", version.analysis, ".pdf")
+    pdfname = paste0(resDir, "clustering_atacseqPeaks_preprosessingWithLimma", version.analysis, ".pdf")
     pdf(pdfname, width = 16, height = 12)
     
-    groups = clustering.peak.signals(pks, sd.cutoff = 0.7, cor.cutoff = 0.6, plot.grouping.result = TRUE)
+    source('functions_chipSeq.R')
+    #pks = merge.biologicalReplicates(pks)
+    #pks[which(rownames(pks)=='chrV_10647106_10647681'),  ]
+    #source('functions_chipSeq.R')
+    cor.cutoff = 0.6 
+    
+    groups = clustering.peak.signals(pks, design.matrix, sd.cutoff = 0.7, cor.cutoff = 0.6, plot.grouping.result = TRUE)
     
     dev.off()
     
     res = data.frame(res[, c(1:11)],  pks, groups, stringsAsFactors = FALSE)
     
-    write.csv(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment_clustered.txt"),
-            col.names = TRUE, row.names = TRUE, quote = FALSE)
+    load(file = paste0(resDir, "atacPeakSignals_geneAssignment_clustered.Rdata"))
+    write.table(res, file = paste0(tableDir, "normalized_rpkm_for_atacSeqPeaks_background_geneAssignment_clustered.txt"),
+                sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
     save(res, file = paste0(resDir, "atacPeakSignals_geneAssignment_clustered.Rdata"))
     
     

@@ -45,10 +45,20 @@ for(n in c(1:length(bamlist)))
   }
 }
 
+########################################################
+########################################################
+# Section : split reads into nucleosome free and mono- dinucleosome regions
+# initial code found 
+# https://rockefelleruniversity.github.io/RU_ATAC_Workshop.html#greenleaf-dataset---finding-open-regions.
+########################################################
+########################################################
+bamDir = "../data/Bams_merged"
+test.Nucleosome.Free = TRUE
+Save.splitted.Bam = FALSE
+Save.splitted.BW = FALSE
+plot.fragmentSize = FALSE
 
-bamDir = "../../R6729_atac/alignments/BAMs_unique_rmdup"
-
-outDir = "../results/splited_NFR"
+outDir = "../results/bigWigs_cutSites_repMerged_NFR"
 if(!dir.exists(outDir)) dir.create(outDir)
 outBam = paste0(outDir, "/bam_NFR")
 outBW = paste0(outDir, "/bw_NFR")
@@ -58,12 +68,7 @@ if(!dir.exists(outBW)) dir.create(outBW)
 bamlist = list.files(path = bamDir, pattern = "*.bam$", full.names = TRUE)
 #bamlist = bamlist[grep("90min", bamlist, invert = TRUE)]
 
-Save.splitted.Bam = TRUE;
-save.splitted.BW = TRUE
-
 library(Rsubread)
-#pmapped <- propmapped(sortedBAM)
-#pmapped
 library(GenomicAlignments)
 library(rtracklayer)
 library(magrittr)
@@ -72,151 +77,119 @@ library(ggplot2)
 
 for(n in 1:length(bamlist))
 {
-  # n = 7
+  # n = 3
   cat("bam file -- ", bamlist[n], "\n")
   bam = bamlist[n]
-  
   bname = paste0(gsub(".bam", "", basename(bam)))
   cat("bam name -- ", bname, "\n")
   
-  #splitDir = paste0("results/splited_NFR/", bname)
-  
   cat("directory to save -- ", outDir, "\n")
   
-  sortedBAM = bam
-  
-  atacReads <- readGAlignmentPairs(sortedBAM, 
+  # test chrV:10,643,153-10,649,406
+  atacReads <- readGAlignmentPairs(bam, 
                                    param = ScanBamParam(mapqFilter = 30, 
                                                         flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE, isDuplicate =FALSE), 
-                                                        what = c("qname", "mapq", "isize")))
-  # length(atacReads)
-  #atacReads
+                                                        what = c("qname", "mapq", "isize"), 
+                                                        which = GRanges("chrV", IRanges(10000000, 12649406))))
+  length(atacReads)
+  atacReads
   
-  # Retrieving insert sizes
-  atacReads_read1 <- GenomicAlignments::first(atacReads)
-  insertSizes <- abs(elementMetadata(atacReads_read1)$isize)
-  head(insertSizes)
-  
-  fragLenPlot <- table(insertSizes) %>% data.frame %>% rename(InsertSize = insertSizes, 
-                                                              Count = Freq) %>% mutate(InsertSize = as.numeric(as.vector(InsertSize)), 
-                                                                                       Count = as.numeric(as.vector(Count))) %>% ggplot(aes(x = InsertSize, y = Count)) + 
-    geom_line()
-  
-  fragLenPlot + theme_bw()
-  fragLenPlot + scale_y_continuous(trans = "log2") + theme_bw()
-  fragLenPlot + geom_vline(xintercept = c(180, 247), colour = "red") + geom_vline(xintercept = c(315, 437), colour = "darkblue") +
-    geom_vline(xintercept = c(100), colour = "darkgreen") + 
-    theme_bw()
-  
-  # split the reads for NFR and mono
-  atacReads_Open <- atacReads[insertSizes < 100, ]
-  atacReads_MonoNuc <- atacReads[insertSizes > 180 & insertSizes < 240, ]
-  atacReads_diNuc <- atacReads[insertSizes > 315 & insertSizes < 437, ]
-  
-  # save splitted bam
-  allRegionBam = paste0(outBam, "/", bname,  "_allRegions.bam")
-  openRegionBam <- paste0(outBam, "/", bname, "_openRegions.bam")
-  monoNucBam <- paste0(outBam, "/", bname, "_monoNuc.bam") 
-  diNucBam <- paste0(outBam, "/", bname, "_diNuc.bam")
-  
-  export(atacReads, allRegionBam, format = "bam")
-  export(atacReads_Open, openRegionBam, format = "bam")
-  export(atacReads_MonoNuc, monoNucBam, format = "bam")
-  export(atacReads_diNuc, diNucBam, format = "bam")
-  
-  # save splitted bigwig
-  allRegionBW = paste0(outBW, "/", bname, "_allRegions.bw")
-  openRegionBW <- paste0(outBW, "/", bname, "_openRegions.bw")
-  monoNucBW <- paste0(outBW, "/", bname, "_monoNuc.bw") 
-  diNucBW <- paste0(outBW, "/", bname, "_diNuc.bw")
-  
-  #coverage(granges(ga))
-  export.bw(coverage(granges(atacReads)), allRegionBW)
-  export.bw(coverage(granges(atacReads_Open)), openRegionBW)
-  export.bw(coverage(granges(atacReads_MonoNuc)), monoNucBW)
-  export.bw(coverage(granges(atacReads_diNuc)), diNucBW)
-  
-}
-
-########################################################
-########################################################
-# NOT USED !!!
-# Section: try ATACseqQC R pacakge which does not work at all
-########################################################
-########################################################
-Use.ATACseqQC = FALSE
-if(Use.ATACseqQC){
-  install.pkgs = FALSE
-  if(install.pkgs)
-  {
-    source("https://bioconductor.org/biocLite.R")
-    biocLite("BSgenome.Celegans.UCSC.ce11")
-    biocLite("TxDb.Celegans.UCSC.ce11.refGene")
-    biocLite("Rsubread")
-    biocLite("Rsamtools")
-    biocLite("ATACseqQC")
+  if(test.Nucleosome.Free){
+    nn = c(1:3)
+    # Retrieving insert sizes
+    atacReads_read1 <- GenomicAlignments::first(atacReads)
+    insertSizes <- abs(elementMetadata(atacReads_read1)$isize)
+    head(insertSizes)
+    
+    if(plot.fragmentSize){
+      fragLenPlot <- table(insertSizes) %>% data.frame %>% rename(InsertSize = insertSizes, 
+                                                                  Count = Freq) %>% mutate(InsertSize = as.numeric(as.vector(InsertSize)), 
+                                                                                           Count = as.numeric(as.vector(Count))) %>% ggplot(aes(x = InsertSize, y = Count)) + 
+        geom_line()
+      
+      fragLenPlot + theme_bw()
+      fragLenPlot + scale_y_continuous(trans = "log2") + theme_bw()
+      fragLenPlot + geom_vline(xintercept = c(180, 247), colour = "red") + geom_vline(xintercept = c(315, 437), colour = "darkblue") +
+        geom_vline(xintercept = c(100), colour = "darkgreen") + 
+        theme_bw()
+      
+    }
+    # split the reads for NFR and mono
+    atacReads_Open <- atacReads[insertSizes < 100, ]
+    atacReads_MonoNuc <- atacReads[insertSizes > 180 & insertSizes < 240, ]
+    atacReads_diNuc <- atacReads[insertSizes > 315 & insertSizes < 437, ]
+    
+    if(Save.splitted.Bam){
+      # save splitted bam
+      allRegionBam = paste0(outBam, "/", bname,  "_allRegions.bam")
+      openRegionBam <- paste0(outBam, "/", bname, "_openRegions.bam")
+      monoNucBam <- paste0(outBam, "/", bname, "_monoNuc.bam") 
+      diNucBam <- paste0(outBam, "/", bname, "_diNuc.bam")
+      
+      export(atacReads, allRegionBam, format = "bam")
+      export(atacReads_Open, openRegionBam, format = "bam")
+      export(atacReads_MonoNuc, monoNucBam, format = "bam")
+      export(atacReads_diNuc, diNucBam, format = "bam")
+    }
+    if(Save.splitted.BW){
+      # save splitted bigwig
+      allRegionBW = paste0(outBW, "/", bname, "_allRegions.bw")
+      openRegionBW <- paste0(outBW, "/", bname, "_openRegions.bw")
+      monoNucBW <- paste0(outBW, "/", bname, "_monoNuc.bw") 
+      diNucBW <- paste0(outBW, "/", bname, "_diNuc.bw")
+      
+      #coverage(granges(ga))
+      export.bw(coverage(granges(atacReads)), allRegionBW)
+      export.bw(coverage(granges(atacReads_Open)), openRegionBW)
+      export.bw(coverage(granges(atacReads_MonoNuc)), monoNucBW)
+      export.bw(coverage(granges(atacReads_diNuc)), diNucBW)
+    }
+  }else{
+    nn = c(1)
   }
   
-  library("ATACseqQC")
-  library("Rsubread")
-  library("Rsamtools")
-  library(GenomicAlignments)
-  #library("ggplot2")
-  #library("devtools")
-  #library("magrittr")
-  library(BSgenome.Celegans.UCSC.ce11)
-  library(TxDb.Celegans.UCSC.ce11.refGene)
+  ########################################################
+  ########################################################
+  # Section : Cutting sites from ATAC-seq data
+  # ATAC-seq should generate shorter fragments (our nucleosome free regions) around smaller protected areas such as transcription factor binding sites.
+  # We can therefore look for the pile-up of cut-sites around motifs of interest within different tissues/celltypes/samples.
+  # To produce cut-sites from our BAM file we first resize our reads to 1bp and make the shift of 4/-5 bp depending on strand to 
+  # adjust for expected shift from insertion of Tn5 transposase.
+  # Here we will identify CTCF motifs passing an arbitary cut-off and then use soGGi to plot cut-sites around them
+  ########################################################
+  ########################################################
+  #library(MotifDb)
+  #library(Biostrings)
+  #library(BSgenome.Hsapiens.UCSC.hg19)
   
-  bamlist = list.files(path = "../R6548_atac/alignments/BAMs_unique_rmdup", pattern = "*.bam$", full.names = TRUE)
-  
-  txs <- transcripts(TxDb.Celegans.UCSC.ce11.refGene)
-  #txs <- txs[seqnames(txs) %in% "chrI"]
-  
-  genome <- Celegans
-  
-  #dir.create(outPath)
-  
-  for(n in c(1))
-  {
-    # n = 1
-    cat("bam file -- ", bamlist[n], "\n")
-    bam = bamlist[n]
+  #CTCF <- query(MotifDb, c("CTCF"))
+  #CTCF <- as.list(CTCF)
+  #myRes <- matchPWM(CTCF[[1]], BSgenome.Hsapiens.UCSC.hg19[["chr20"]])
+  #toCompare <- GRanges("chr20", ranges(myRes))
+  for(kk in nn){
+    if(kk == 1){Reads = atacReads; bwName = paste0(outDir, '/', bname, ".bw") }
+    if(kk == 2){Reads = atacReads_Open; bwName = paste0(outDir, '/', bname, "_Open.bw")}
+    if(kk == 3){Reads = atacReads_MonoNuc; bwName = paste0(outDir, '/', bname, "_MonoNuc.bw")}
+    cat(bwName, '\n')
     
-    #ga = readGAlignmentPairs(bam)
-    #ga = readGAlignmentPairs(bam,param = ScanBamParam(flag=scanBamFlag(isDuplicate =FALSE))
-    #xx = coverage(granges(ga))
-    #export.bw(xx, con = paste0(, bwname))
+    read1 <- first(Reads)
+    read2 <- second(Reads)
+    Firsts <- resize(granges(read1), fix = "start", 1)
+    First_Pos_toCut <- shift(granges(Firsts[strand(read1) == "+"]), 4)
+    First_Neg_toCut <- shift(granges(Firsts[strand(read1) == "-"]), -5)
     
-    bname = paste0(gsub(".bam", "", basename(bam)))
-    cat("bam name -- ", bname, "\n")
+    Seconds <- resize(granges(read2), fix = "start", 1)
+    Second_Pos_toCut <- shift(granges(Seconds[strand(read2) == "+"]), 4)
+    Second_Neg_toCut <- shift(granges(Seconds[strand(read2) == "-"]), -5)
     
-    splitDir = paste0("results/splited_NFR/", bname)
-    if(!dir.exists(splitDir)) dir.create(splitDir)
+    test_toCut <- c(First_Pos_toCut, First_Neg_toCut, Second_Pos_toCut, Second_Neg_toCut)
+    cutsCoverage <- coverage(test_toCut)
+    #cutsCoverage20 <- cutsCoverage["chr20"]
+    #CTCF_Cuts_open <- regionPlot(cutsCoverage20, testRanges = toCompare, style = "point", 
+    #                             format = "rlelist", distanceAround = 500)
+    #plotRegion(CTCF_Cuts_open, outliers = 0.001) + ggtitle("NucFree Cuts Centred on CTCF")
     
-    cat("directory to save -- ", splitDir, "\n")
-    
-    #seqlev <- "chrI" ## subsample data for quick run
-    #which <- as(seqinfo(Celegans)[seqlev], "GRanges")
-    #tags <- c("AS", "XN", "XM", "XO", "XG", "NM", "MD", "YS", "YT")
-    
-    bb = readBamFile(bam, asMates = TRUE)
-    
-    cat("start to shift the reads ----\n")
-    
-    bb <- shiftGAlignmentsList(bb)
-    
-    #bb.shifted <- file.path(splitDir,  "_shifted.bam"))
-    
-    # export(bb, bb.shifted)
-    #names(bb) <- mcols(bb)$qname
-    
-    cat("start to split reads into nucleosome free and ... \n")
-    
-    objs <- splitGAlignmentsByCut(bb, txs=txs, genome=genome)
-    
-    ### Save the binned alignments into bam files
-    cat("start to save the bam files ...\n")
-    null <- writeListOfGAlignments(objs, splitDir)
-    
+    export(cutsCoverage, con = bwName)
   }
+  
 }

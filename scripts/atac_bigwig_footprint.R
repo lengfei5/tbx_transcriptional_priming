@@ -37,8 +37,8 @@ for(n in c(1:length(bamlist)))
       ga = readGAlignments(bam)
     }
     
-    s = length(ga)/1e6
-    xx = coverage(granges(ga))/s
+    ss = length(ga)/2
+    xx = coverage(granges(ga))/s*10^6
     
     #xx = log2(xx+2^-6)
     export.bw(xx, con = paste0(OutDir, bw.name))
@@ -52,13 +52,13 @@ for(n in c(1:length(bamlist)))
 # https://rockefelleruniversity.github.io/RU_ATAC_Workshop.html#greenleaf-dataset---finding-open-regions.
 ########################################################
 ########################################################
-bamDir = "../data/Bams_merged"
+bamDir = "../data/Bams"
 test.Nucleosome.Free = TRUE
 Save.splitted.Bam = FALSE
 Save.splitted.BW = FALSE
 plot.fragmentSize = FALSE
 
-outDir = "../results/bigWigs_cutSites_repMerged_NFR"
+outDir = "../results/bigWigs_cutSites_repAll_NFR"
 if(!dir.exists(outDir)) dir.create(outDir)
 outBam = paste0(outDir, "/bam_NFR")
 outBW = paste0(outDir, "/bw_NFR")
@@ -66,7 +66,9 @@ if(!dir.exists(outBam)) dir.create(outBam)
 if(!dir.exists(outBW)) dir.create(outBW)
 
 bamlist = list.files(path = bamDir, pattern = "*.bam$", full.names = TRUE)
-#bamlist = bamlist[grep("90min", bamlist, invert = TRUE)]
+bamlist = bamlist[grep("tbx", bamlist, invert = TRUE)]
+
+cat("directory to save -- ", outDir, "\n")
 
 library(Rsubread)
 library(GenomicAlignments)
@@ -83,16 +85,15 @@ for(n in 1:length(bamlist))
   bname = paste0(gsub(".bam", "", basename(bam)))
   cat("bam name -- ", bname, "\n")
   
-  cat("directory to save -- ", outDir, "\n")
-  
   # test chrV:10,643,153-10,649,406
-  atacReads <- readGAlignmentPairs(bam, 
-                                   param = ScanBamParam(mapqFilter = 30, 
+  atacReads <- readGAlignmentPairs(bam,
+                                   param = ScanBamParam(mapqFilter = 30,
                                                         flag = scanBamFlag(isPaired = TRUE, isProperPair = TRUE, isDuplicate =FALSE), 
                                                         what = c("qname", "mapq", "isize"), 
                                                         which = GRanges("chrV", IRanges(10000000, 12649406))))
   length(atacReads)
   atacReads
+  ss = length(atacReads)/2
   
   if(test.Nucleosome.Free){
     nn = c(1:3)
@@ -147,7 +148,6 @@ for(n in 1:length(bamlist))
   }else{
     nn = c(1)
   }
-  
   ########################################################
   ########################################################
   # Section : Cutting sites from ATAC-seq data
@@ -161,11 +161,6 @@ for(n in 1:length(bamlist))
   #library(MotifDb)
   #library(Biostrings)
   #library(BSgenome.Hsapiens.UCSC.hg19)
-  
-  #CTCF <- query(MotifDb, c("CTCF"))
-  #CTCF <- as.list(CTCF)
-  #myRes <- matchPWM(CTCF[[1]], BSgenome.Hsapiens.UCSC.hg19[["chr20"]])
-  #toCompare <- GRanges("chr20", ranges(myRes))
   for(kk in nn){
     if(kk == 1){Reads = atacReads; bwName = paste0(outDir, '/', bname, ".bw") }
     if(kk == 2){Reads = atacReads_Open; bwName = paste0(outDir, '/', bname, "_Open.bw")}
@@ -183,13 +178,9 @@ for(n in 1:length(bamlist))
     Second_Neg_toCut <- shift(granges(Seconds[strand(read2) == "-"]), -5)
     
     test_toCut <- c(First_Pos_toCut, First_Neg_toCut, Second_Pos_toCut, Second_Neg_toCut)
-    cutsCoverage <- coverage(test_toCut)
-    #cutsCoverage20 <- cutsCoverage["chr20"]
-    #CTCF_Cuts_open <- regionPlot(cutsCoverage20, testRanges = toCompare, style = "point", 
-    #                             format = "rlelist", distanceAround = 500)
-    #plotRegion(CTCF_Cuts_open, outliers = 0.001) + ggtitle("NucFree Cuts Centred on CTCF")
-    
+    cutsCoverage <- coverage(test_toCut)/ss*10^6
     export(cutsCoverage, con = bwName)
+  
   }
   
 }

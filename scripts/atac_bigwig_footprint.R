@@ -7,13 +7,16 @@
 # Date of creation: Wed Sep 26 14:22:26 2018
 ##########################################################################
 ##########################################################################
-library(GenomicAlignments)
-library(rtracklayer)
+Manual.changeFileName = FALSE
+Normalized.coverage = TRUE
+Logtransform.coverage = FALSE
+bamlist = list.files(path = "../../R7795_atac/alignments/BAMs_unique_rmdup", pattern = "*.bam$", full.names = TRUE)
 
 OutDir = "../data/bigWigs_PE/"
 if(!dir.exists(OutDir)) dir.create(OutDir)
 
-bamlist = list.files(path = "../data/Bams", pattern = "*.bam$", full.names = TRUE)
+library(GenomicAlignments)
+library(rtracklayer)
 
 for(n in c(1:length(bamlist)))
 {
@@ -22,11 +25,14 @@ for(n in c(1:length(bamlist)))
   bw.name = basename(bam)
   bw.name = gsub(".bam", ".bw", bw.name)
   bw.name = gsub("_uniq_rmdup", '', bw.name)
-  bw.name = gsub("140min", '200min', bw.name)
-  bw.name = gsub("60min", '90min', bw.name)
-  bw.name = gsub("Aba", 'ABa', bw.name)
-  bw.name = gsub("Abp", 'ABp', bw.name)
   
+  if(Manual.changeFileName){
+    bw.name = gsub("140min", '200min', bw.name)
+    bw.name = gsub("60min", '90min', bw.name)
+    bw.name = gsub("Aba", 'ABa', bw.name)
+    bw.name = gsub("Abp", 'ABp', bw.name)
+  }
+ 
   cat("bam file: ", bamlist[n], '-- ', "bw name: ", bw.name, "\n")
   
   if(! file.exists(paste0(OutDir, bw.name))){
@@ -37,10 +43,15 @@ for(n in c(1:length(bamlist)))
       ga = readGAlignments(bam)
     }
     
-    ss = length(ga)/2
-    xx = coverage(granges(ga))/s*10^6
+    if(Normalized.coverage){
+      ss = length(ga)/2
+      xx = coverage(granges(ga))/ss*10^6
+    }else{
+      xx = ga
+    }
     
-    #xx = log2(xx+2^-6)
+    if(Logtransform.coverage) xx = log2(xx+2^-6)
+    
     export.bw(xx, con = paste0(OutDir, bw.name))
   }
 }
@@ -184,3 +195,29 @@ for(n in 1:length(bamlist))
   }
   
 }
+
+xx = read.delim('../results/peakGroups/early_ABa_ABp_pooledPeaks_chrV.bed', sep = '\t', header = FALSE)
+xx$V4 = paste0(xx$V1, "_", xx$V2, "_", xx$V3)
+xx$V5 = 1
+xx$V6 = "+"
+write.table(xx, file = "../results/peakGroups/early_ABa_ABp_pooledPeaks_chrV_v2.bed", sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+spike.files <- list.files(path = "/Volumes/clustertmp/jiwang/Philipp_R7290/nf_test_piRNA_spikeIn_umi/spikeIns", 
+                          pattern = "*spikeIn.txt", full.names = TRUE)
+
+spike.tables <- lapply(spike.files, function(f) {
+  tmp <- read.delim(f, header = TRUE)
+  tmp = t(tmp)
+  id <- rownames(tmp)[1:8]
+  tmp1 = tmp[c(1:8), ]
+  tmp2 = tmp[c(9:16), ]
+  names(tmp1) = id
+  names(tmp2) = id
+  #tmp = cbind(id, t(tmp[1, c(1:8)]), t(tmp[1, -c(1:8)))
+  tmp = data.frame(id, tmp1, tmp2, stringsAsFactors = FALSE)
+  
+  name <- sub("count/(.*).trimmed.clean.seqCnt.count.txt", "\\1", f)
+  colnames(tmp) <- c("Name", paste0(c("Total", "Total.UMI"), ".", name))
+  return(tmp)
+})
+

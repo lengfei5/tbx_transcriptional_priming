@@ -19,5 +19,15 @@ cd /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/test
 conda activate RGT
 rgt-hint footprinting --atac-seq ATAC.bam ATACPeaks.bed
 
-# run rgt-hint for ABa
-rgt-hint footprinting --atac-seq --paired-end --organism=ce11 --output-location=./results/footprint_hint --output-prefix=ABa_90min /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/Bams/ABa_90min_71327.bam /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_pooledPeaks_chrV.bed  
+# run rgt-hint for ABa and visualize the bias corrected signals
+rgt-hint footprinting --atac-seq --paired-end --organism=ce11 --output-location=./results/footprint_hint --output-prefix=ABa_90min_chrV_test2 /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/test_footprint/ABa_90min_71327_chrV.bam /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_pooledPeaks_chrV.bed  
+
+ml load libpng/1.2.58 # require old library lippng
+rgt-hint tracks --bc --bigWig --organism=ce11 /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/test_footprint/ABa_90min_71327_chrV.bam /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_pooledPeaks_chrV.bed --output-location=./results/footprint_hint --output-prefix=ABa_90min_chrV_bw
+
+## test single-end option
+rgt-hint footprinting --atac-seq --organism=ce11 --output-location=./results/footprint_hint --output-prefix=ABa_90min_chrV_SEtest /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/test_footprint/ABa_90min_71327_chrV.bam /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_pooledPeaks_chrV.bed
+
+# test wellington footprint
+wellington_footprints.py /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/peakGroups/early_ABa_ABp_pooledPeaks_chrV_v2.bed /groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/data/test_footprint/ABa_90min_71327_chrV.bam ./results/footprint_wellington
+    

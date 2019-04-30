@@ -459,3 +459,27 @@ if(run.pairwise.Comparison.DESeq2){
 }
 
 
+########################################################
+########################################################
+# Section : small analysis for some details 
+# 
+########################################################
+########################################################
+
+##########################################
+# ovlerapping between tbx peaks and the peak cluster where lsy-6 is
+##########################################
+load(file = paste0(resDir, "atacPeakSignals_geneAssignment_clustered.Rdata"))
+cluster.sel = unique(res$groups[grep('lsy-6', res$gene)])
+
+df = data.frame(res[which(res$groups == cluster.sel), c(1:3)], stringsAsFactors = FALSE)
+
+xx = makeGRangesFromDataFrame(df)  # strand value "." is replaced with "*"
+
+yy = readPeakFile(peak.files[grep('tbx_90min', peak.files)])
+if(seqlevelsStyle(yy) != "UCSC") seqlevelsStyle(yy) = "UCSC";
+
+length(xx)
+length(xx[overlapsAny(xx, yy)])
+length(countOverlaps(xx,yy))
+sum(countOverlaps(xx,yy)>0)

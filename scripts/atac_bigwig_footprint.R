@@ -10,7 +10,7 @@
 Manual.changeFileName = FALSE
 Normalized.coverage = TRUE
 Logtransform.coverage = FALSE
-bamlist = list.files(path = "../../R7795_atac/alignments/BAMs_unique_rmdup", pattern = "*.bam$", full.names = TRUE)
+bamlist = list.files(path = "../../R8561_atac/alignments/BAMs_unique_rmdup", pattern = "*.bam$", full.names = TRUE)
 
 OutDir = "../data/bigWigs_PE/"
 if(!dir.exists(OutDir)) dir.create(OutDir)

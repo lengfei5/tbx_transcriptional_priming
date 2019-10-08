@@ -1,7 +1,9 @@
 ##########################################################################
 ##########################################################################
 # Project:
-# Script purpose: make bigwig file for paired_end bam
+# Script purpose: 
+# 1) make bigwig file for atac-seq paired_end bam files
+# 2) split atac-seq eads into nucleosome-free, mono- and dinucleosome regions
 # Usage example: 
 # Author: Jingkui Wang (jingkui.wang@imp.ac.at)
 # Date of creation: Wed Sep 26 14:22:26 2018

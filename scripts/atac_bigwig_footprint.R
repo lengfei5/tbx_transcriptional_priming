@@ -12,9 +12,13 @@
 Manual.changeFileName = FALSE
 Normalized.coverage = TRUE
 Logtransform.coverage = FALSE
-bamlist = list.files(path = "../../R8561_atac/alignments/BAMs_unique_rmdup", pattern = "*.bam$", full.names = TRUE)
+Pairend = FALSE
+baseDir = '/Volumes/clustertmp/jiwang/R9964_atac'
 
-OutDir = "../data/bigWigs_PE/"
+InputDir = paste0(baseDir, '/alignments/BAMs_unique_rmdup')
+OutDir = paste0(baseDir, "/bigWigs_PE/")
+bamlist = list.files(path = InputDir, pattern = "*.bam$", full.names = TRUE)
+
 if(!dir.exists(OutDir)) dir.create(OutDir)
 
 library(GenomicAlignments)
@@ -22,7 +26,7 @@ library(rtracklayer)
 
 for(n in c(1:length(bamlist)))
 {
-  # n = 14
+  # n = 1
   bam = bamlist[n]
   bw.name = basename(bam)
   bw.name = gsub(".bam", ".bw", bw.name)
@@ -37,8 +41,8 @@ for(n in c(1:length(bamlist)))
  
   cat("bam file: ", bamlist[n], '-- ', "bw name: ", bw.name, "\n")
   
-  if(! file.exists(paste0(OutDir, bw.name))){
-    if(!grepl('tbx', bam)){
+  if(!file.exists(paste0(OutDir, bw.name))){
+    if(Pairend){
       ga = readGAlignmentPairs(bam)
       #ga = readGAlignmentPairs(bam,param = ScanBamParam(flag=scanBamFlag(isDuplicate =FALSE))
     }else{
@@ -61,7 +65,7 @@ for(n in c(1:length(bamlist)))
 ########################################################
 ########################################################
 # Section : split reads into nucleosome free and mono- dinucleosome regions
-# initial code found 
+# initial code was found 
 # https://rockefelleruniversity.github.io/RU_ATAC_Workshop.html#greenleaf-dataset---finding-open-regions.
 ########################################################
 ########################################################

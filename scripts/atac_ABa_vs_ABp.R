@@ -12,7 +12,7 @@ peak.files = list.files(path = "../../R6548_atac/Peaks/macs2",
 peak.files = c(peak.files, list.files(path = "../../R6729_atac/Peaks/macs2", 
                         pattern = "*.xls", full.names = TRUE))
 # import tbx peaks
-peak.files = c(peak.files, "../data/tbx_90min_peaks_merged_macs2_p_5_filtered_N2_gene_assignment_TSS_WBcel235_analysis_v2.bed")
+# peak.files = c(peak.files, "../data/tbx_90min_peaks_merged_macs2_p_5_filtered_N2_gene_assignment_TSS_WBcel235_analysis_v2.bed")
 
 outDir = paste0("../results/DB_ABa_ABp")
 if(!dir.exists(outDir)) dir.create(outDir);

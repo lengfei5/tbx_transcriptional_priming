@@ -34,7 +34,7 @@ library("GenomicRanges")
 source('functions_chipSeq.R')
 
 ###############################
-# make design matrix 
+# make design matrix for peak files
 ###############################
 source('functions_chipSeq.R')
 design.matrix = make.design.matrix.from.file.list(peak.files = peak.files, varnames = c('genetic.background', 'lineage', 'time.point'))
@@ -95,6 +95,135 @@ subsetByOverlaps(peaks.all, lsy6.peaks, invert = FALSE)
 
 save(design.matrix, peaks.all, peaks.list, file = paste0(outDir, '/design.matrix_peak.list_pooledpeaks.Rdata'))
 export(peaks.all, con = paste0(outDir,  "/ABa_ABp_ASE_pooledPeaks.bed"))
+
+
+########################################################
+########################################################
+# Section : define lineage specific peaks using called peaks
+# define ABa- and ABp- specific peaks by pooling replicates and two time points (90 and 200 min)
+########################################################
+########################################################
+library(rtracklayer)
+
+#sels = which(design.matrix$condition != "330min" & design.matrix$factor != 'tbx' & design.matrix$condition != "200min")
+sels = which(design.matrix$factor.condition == '90min_ABa' | design.matrix$factor.condition == '90min_ABp')
+design.sels = design.matrix[sels,  ]
+peaks.sels = peaks.list[sels]
+
+conds = unique(design.sels$factor)
+peaks = c()
+peaknames = conds
+pval = 10
+
+for(fac in conds){
+  # fac = 'ABa'
+  kk = which(design.sels$factor == fac)
+  peaks.merged = c() 
+  
+  for(k in kk) 
+  {
+    # k = 2
+    xx = readPeakFile(design.sels$file.path[k], as = "GRanges");
+    if(seqlevelsStyle(xx) != "UCSC") seqlevelsStyle(xx) = "UCSC";
+    with.p.values = "X.log10.pvalue." %in% colnames(mcols(xx))
+    p10 <- xx[mcols(xx)[,"X.log10.pvalue."] > pval]
+    
+    if(length(peaks.merged) == 0) {
+      peaks.merged = reduce(p10, ignore.strand = TRUE)
+    }else{
+      peaks.merged = reduce(intersect(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
+    }
+    cat(fac, ' -- all peaks :', length(xx), ' -- peaks <10-10: ', length(p10), ' -- merged peaks', length(peaks.merged), '\n')
+  }
+  peaks = c(peaks, peaks.merged)
+}
+
+pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_ABa_ABp_replicateOverlapPeaks.pdf"),
+    width = 12, height = 8)
+source("functions_chipSeq.R") 
+
+ol.peaks <- makeVennDiagram(peaks, NameOfPeaks=c('ABa', 'ABp'), connectedPeaks="keepAll", main='ABa.vs.ABp')
+
+v <- venn_cnt2venn(ol.peaks$vennCounts)
+try(plot(v))
+
+dev.off()
+
+##########################################
+# define 7 groups of peaks using ABa ABp and 2to8cell.stage 
+##########################################
+Define.Groups.peaks = FALSE
+if(Define.Groups.peaks){
+  names(peaks) = conds
+  p.all = union(peaks[[1]], peaks[[2]], ignore.strand = TRUE)
+  p.all = union(p.all, peaks[[3]], ignore.strand = TRUE)
+  p.all = reduce(p.all, ignore.strand = TRUE)
+  
+  export(p.all, con = paste0("../results/peakGroups/early_ABa_ABp_pooledPeaks.bed"))
+  export(peaks[[1]], con = paste0("../results/peakGroups/early_allPeaks.bed"))
+  export(peaks[[2]], con = paste0("../results/peakGroups/ABa_allPeaks.bed"))
+  export(peaks[[3]], con = paste0("../results/peakGroups/ABp_allPeaks.bed"))
+  
+  
+  p = p.all[overlapsAny(p.all, peaks[[1]])]
+  p = p[overlapsAny(p, peaks[[2]])]
+  p = p[overlapsAny(p, peaks[[3]])]
+  
+  export(p, con = paste0("../results/peakGroups/early_ABa_ABp_shared.bed"))
+  
+  p = p.all[!overlapsAny(p.all, peaks[[2]])]
+  p = p[!overlapsAny(p, peaks[[3]])]
+  
+  export(p, con = paste0("../results/peakGroups/early_unique.bed"))
+  
+  p = p.all[overlapsAny(p.all, peaks[[2]])]
+  p = p[overlapsAny(p, peaks[[1]])]
+  p = p[!overlapsAny(p, peaks[[3]])]
+  
+  export(p, con = paste0("../results/peakGroups/early_ABa_shared.bed"))
+  
+  p = p.all[overlapsAny(p.all, peaks[[3]])]
+  p = p[overlapsAny(p, peaks[[1]])]
+  p = p[!overlapsAny(p, peaks[[2]])]
+  
+  export(p, con = paste0("../results/peakGroups/early_ABp.bed"))
+  
+  p = p.all[overlapsAny(p.all, peaks[[2]])]
+  p = p[!overlapsAny(p, peaks[[1]])]
+  p = p[!overlapsAny(p, peaks[[3]])]
+  export(p, con = paste0("../results/peakGroups/ABa_unique.bed"))
+  
+  p = p.all[overlapsAny(p.all, peaks[[3]])]
+  p = p[!overlapsAny(p, peaks[[2]])]
+  p = p[!overlapsAny(p, peaks[[1]])]
+  export(p, con = paste0("../results/peakGroups/ABp_unique.bed"))
+  
+  p = p.all[overlapsAny(p.all, peaks[[3]])]
+  p = p[overlapsAny(p, peaks[[2]])]
+  p = p[!overlapsAny(p, peaks[[1]])]
+  export(p, con = paste0("../results/peakGroups/ABa_ABp_shared.bed"))
+  
+  ##########################################
+  # define ABa and ABp specific peaks using ABa and ABp peaks
+  ##########################################
+  ABa = peaks.list[[which(design.matrix$factor.condition == "Aba_90min")]]
+  ABp = peaks.list[[which(design.matrix$factor.condition == "Abp_90min")]]
+  p = ABa 
+  p <- p[mcols(p)[,"X.log10.pvalue."] > pval]
+  p <- p[!overlapsAny(p, ABp)]
+  
+  export(p, con = paste0("results/motif_analysis/peaks_bed/ABa_unique_peaks.bed"))
+  
+  p = ABp
+  p <- p[mcols(p)[,"X.log10.pvalue."] > pval]
+  p <- p[!overlapsAny(p, ABa)]
+  export(p, con = paste0("results/motif_analysis/peaks_bed/ABp_unique_peaks.bed"))
+  ###############################
+  # run motif analysis for those two unique peak sets 
+  ###############################
+  
+}
+
 
 ########################################################
 ########################################################

@@ -9,8 +9,12 @@ module load meme/4.12.0-foss-2017a
 #MEME_path="/groups/cochella/jiwang/local/meme/bin/"
 
 cwd=`pwd`;
+
+# bed file as input
 resDir="/groups/cochella/jiwang/Projects/Ariane/atacseq_analysis/results/motif_analysis" 
 input_peaks=${resDir}/peaks_bed
+
+# output folder
 out_fasta=${resDir}/seqs_fasta
 out_ame=${resDir}/ame
 out_meme=${resDir}/meme_chip

@@ -1,9 +1,8 @@
-#setwd("~/clustertmp/Jorge_Arturo.Zepeda_Martinez/")
 library(ChIPseeker)
 library(rtracklayer)
 #library(UpSetR)
 library("ChIPpeakAnno")
-library("Vennerable") #install.packages("Vennerable", repos="http://R-Forge.R-project.org", type="source")
+#library("Vennerable") #install.packages("Vennerable", repos="http://R-Forge.R-project.org", type="source")
 library("ggplot2")
 library("GenomicFeatures")
 
@@ -178,7 +177,9 @@ doAllPlot <- function(set, allPeaksList)
 #covplot(allPeaks[[9]], weightCol="V5", chrs = c(paste0("chr", c(1:19, "X", "Y"))))
 
 
-#peakAnnoList <- list("Normal"=annotatePeak(allPeaks[[1]],  TxDb=txdb,tssRegion=c(-2000, 200), verbose=FALSE), "TSS"=annotatePeak(allPeaks[[1]],  TxDb=txdb,tssRegion=c(0, 0), verbose=FALSE), "5kb"=annotatePeak(allPeaks[[1]],  TxDb=txdb,tssRegion=c(-5000,5000), verbose=FALSE), "3kb"=annotatePeak(allPeaks[[1]],  TxDb=txdb, verbose=FALSE))
+#peakAnnoList <- list("Normal"=annotatePeak(allPeaks[[1]],  TxDb=txdb,tssRegion=c(-2000, 200), verbose=FALSE), 
+    #"TSS"=annotatePeak(allPeaks[[1]],  TxDb=txdb,tssRegion=c(0, 0), verbose=FALSE), "5kb"=annotatePeak(allPeaks[[1]],  
+    #TxDb=txdb,tssRegion=c(-5000,5000), verbose=FALSE), "3kb"=annotatePeak(allPeaks[[1]],  TxDb=txdb, verbose=FALSE))
 
     print(plotAnnoBar(peakAnnoList))
     print(plotDistToTSS(peakAnnoList))
@@ -239,7 +240,8 @@ PLOT.Quality.Controls.Summary = function(stat, index)
   for(n in 1:nrow(ss))
   {
     points(ss$NSC[n], ss$RSC[n], type='p', col=cols[(ss$Quality[n]+3)], pch=16, cex=2.0)
-    #else  points(stat$NSC.1.05.[n], stat$RSC.0.8.[n], type='p', col=cols[(stat$QualityTag..2.verylow..1.low.0.medium.1.high.2.veryhigh.[n]+3)], pch=17, cex=2.0)
+    #else  points(stat$NSC.1.05.[n], stat$RSC.0.8.[n], type='p', 
+    #col=cols[(stat$QualityTag..2.verylow..1.low.0.medium.1.high.2.veryhigh.[n]+3)], pch=17, cex=2.0)
     text(ss$NSC[n], ss$RSC[n], n, cex=1.6, offset=0.5, pos = 1)
   }
   abline(h=c(0.8), col='red', lty=3, lwd=2.0);abline(v=c(1.05), col='red', lty=3, lwd=2.0)
@@ -251,40 +253,47 @@ PLOT.Quality.Controls.Summary = function(stat, index)
     legend('topleft', legend=paste(c(1:nrow(ss)), ss$filename, sep='-'), col=cols[ss$Quality+3], pch=16, bty='n', cex=1.2)
   }else{
     legend('topleft', legend=paste(c(1:40), ss$filename[1:40], sep='-'), col=cols[ss$Quality+3][1:40], pch=16, bty='n', cex=1.)
-    legend('topright', legend=paste(c(41:nrow(ss)), ss$filename[41:nrow(ss)], sep='-'), col=cols[ss$Quality+3][41:nrow(ss)], pch=16, bty='n', cex=1.2)
+    legend('topright', legend=paste(c(41:nrow(ss)), ss$filename[41:nrow(ss)], sep='-'), col=cols[ss$Quality+3][41:nrow(ss)], 
+           pch=16, bty='n', cex=1.2)
   }
   
 }
 
-make.design.matrix.from.file.list = function(peak.files, reOrder = FALSE)
+make.design.matrix.from.file.list = function(peak.files, varnames = c('condition','factor'),  reOrder = FALSE)
 {
   cat("-- parsing design matrix\n")
+  cat('-- ', length(peak.files), 'peak files \n')
+  cat('-- experiment design conditions: \n')
+  print(varnames)
   bname = basename(peak.files)
-  xx = c()
-  yy = c()
-  for(n in 1:length(bname))
+  
+  design.matrix = data.frame(peak.files, bname, stringsAsFactors = FALSE)
+  
+  for(n in 1:length(varnames))
   {
-    test = bname[n];
-    test = unlist(strsplit(as.character(test), "_"))
-    xx = c(xx, test[1])
+    #test = bname[n];
+    design.matrix = data.frame(design.matrix, sapply(bname, function(x) unlist(strsplit(as.character(x), "_"))[n]), 
+                               stringsAsFactors = FALSE)
+    #test = 
+    #xx = c(xx, test[1])
     #test = unlist(strsplit(as.character(test), "[.]"))[-1]
     #test = paste0(test, collapse = ".")
-    yy = c(yy, test[2])
+    #yy = c(yy, test[2])
   }
-  design = data.frame(yy, xx)
+  colnames(design.matrix) = c('file.path', 'file.name', varnames)
   
   #design = data.frame(sapply(bname, find.samples.conditions, ID='conditions'), sapply(bname, find.samples.conditions, ID='samples'),
   #                    stringsAsFactors = FALSE)
-  design.matrix = data.frame(peak.files, bname, design, stringsAsFactors = FALSE)
   
-  colnames(design.matrix) = c('file.path', 'file.name', 'condition', 'factor')
   
-  if(reOrder){
-    design.matrix = design.matrix[with(design.matrix, order(factor, condition)), ];
-  }
-
-  factor.condition = paste0(design.matrix$factor, '_', design.matrix$condition)
-  design.matrix = data.frame(design.matrix, factor.condition, stringsAsFactors = FALSE)
+  #if(reOrder){
+  #  design.matrix = design.matrix[with(design.matrix, order(factor, condition)), ];
+  #}
+  
+  #factor.condition = paste0(design.matrix$factor, '_', design.matrix$condition)
+  #design.matrix = data.frame(design.matrix, factor.condition, stringsAsFactors = FALSE)
+  
+  return(design.matrix)
   
 }
 

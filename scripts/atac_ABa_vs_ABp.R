@@ -7,14 +7,15 @@
 # Date of creation: Wed Sep 26 14:51:15 2018
 ##########################################################################
 ##########################################################################
-peak.files = list.files(path = "../../R6548_atac/Peaks/macs2",
-                       pattern = "*.xls", full.names = TRUE)
-peak.files = c(peak.files, list.files(path = "../../R6729_atac/Peaks/macs2", 
-                        pattern = "*.xls", full.names = TRUE))
+peak.Dir = c('../../all_ATACseq_for_Manuscript/Peaks/macs2')
+
+peak.files = list.files(path = peak.Dir, pattern = "*.xls", full.names = TRUE)
+#peak.files = c(peak.files, list.files(path = "../../R6729_atac/Peaks/macs2", 
+#                        pattern = "*.xls", full.names = TRUE))
 # import tbx peaks
 # peak.files = c(peak.files, "../data/tbx_90min_peaks_merged_macs2_p_5_filtered_N2_gene_assignment_TSS_WBcel235_analysis_v2.bed")
 
-outDir = paste0("../results/DB_ABa_ABp")
+outDir = paste0("../results/paper_revision")
 if(!dir.exists(outDir)) dir.create(outDir);
 manual.modifySampleInfos = TRUE
 
@@ -32,29 +33,40 @@ library("GenomicRanges")
 source('functions_chipSeq.R')
 
 ###############################
-# make design matrix and import peak files
+# make design matrix 
 ###############################
 source('functions_chipSeq.R')
-design.matrix = make.design.matrix.from.file.list(peak.files = peak.files)
+design.matrix = make.design.matrix.from.file.list(peak.files = peak.files, varnames = c('genetic.background', 'lineage', 'time.point'))
 
 if(manual.modifySampleInfos){
-  design.matrix$condition[which(design.matrix$condition=="60min")] = "90min"
-  design.matrix$condition[which(design.matrix$condition=="140min")] = "200min"
-  design.matrix$factor[grep("Aba", design.matrix$factor)] = "ABa"
-  design.matrix$factor[grep("Abp", design.matrix$factor)] = "ABp"
-  design.matrix$factor.condition = paste0(design.matrix$condition, "_", design.matrix$factor)
-  design.matrix = design.matrix[order(design.matrix$condition, design.matrix$factor), ]
+  design.matrix$time.point[which(design.matrix$time.point=="60min")] = "90min"
+  design.matrix$time.point[which(design.matrix$time.point=="140min")] = "200min"
+  design.matrix$time.point[which(design.matrix$time.point=="220min")] = "200min"
+  design.matrix$time.point[which(design.matrix$time.point=="350min")] = "330min"
+  design.matrix$time.point[grep('batch|ASE', design.matrix$time.point)] = "sorted.ASE"
+  # design.matrix$condition[which(design.matrix$condition=="140min")] = "200min"
+  # design.matrix$factor[grep("Aba", design.matrix$factor)] = "ABa"
+  # design.matrix$factor[grep("Abp", design.matrix$factor)] = "ABp"
+  # design.matrix$factor.condition = paste0(design.matrix$condition, "_", design.matrix$factor)
+  # design.matrix = design.matrix[order(design.matrix$condition, design.matrix$factor), ]
 }
 
+##########################################
+# Import and merge peak files
+##########################################
 cat("-- import peak files as GRanges objects \n")
 peaks.list = c()
 peaks.all = NULL
+design.matrix$nb.peaks = NA
+
 for(n in 1:nrow(design.matrix)){
   #n = 14
-  cat(n, '--', design.matrix$factor.condition[n], ":",  design.matrix$file.path[n],  '\n')
+  cat(n, '--', design.matrix$file.name[n], design.matrix$file.path[n], '\n')
   xx = readPeakFile(design.matrix$file.path[n], as = "GRanges");
-  
+  cat(length(xx), ' peaks found \n')
   if(seqlevelsStyle(xx) != "UCSC") seqlevelsStyle(xx) = "UCSC";
+  
+  design.matrix$nb.peaks[n] = length(xx)
   
   peaks.list = c(peaks.list, xx)
   if(n==1) {
@@ -63,10 +75,12 @@ for(n in 1:nrow(design.matrix)){
     peaks.all = union(peaks.all, xx, ignore.strand = TRUE)
   }
 }
+names(peaks.list) = design.matrix$file.name
 
 peaks.all = reduce(peaks.all)
 
-export(peaks.all, con = paste0("../results/peakGroups/early_ABa_ABp_pooledPeaks.bed"))
+save(design.matrix, peaks.all, peaks.list, file = paste0(outDir, '/design.matrix_peak.list_pooledpeaks.Rdata'))
+export(peaks.all, con = paste0(outDir,  "/ABa_ABp_ASE_pooledPeaks.bed"))
 
 ###############################
 # peak overlapping checking

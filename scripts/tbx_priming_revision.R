@@ -195,52 +195,32 @@ names(ss) = design.matrix$file.name
 annot = fc$annotation
 
 counts = fc$counts
-colnames(counts) = design.matrix$file.name
 design.matrix$condition = paste0(design.matrix$genetic.background, '_', design.matrix$lineage, '_', design.matrix$time.point)
+design.matrix$file.name = paste0(design.matrix$condition, '_', design.matrix$sampleID)
+
+colnames(counts) = design.matrix$file.name
+rownames(counts) = annot$GeneID
+rownames(design.matrix) = design.matrix$file.name
 #index.peaks = grep("bg_", annot$GeneID, invert = TRUE)
 
 ##########################################
 # Normalization and comparison 
 ##########################################
-pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_analysis", version.analysis, ".pdf")
-pdf(pdfname, width = 16, height = 12)
-
 source("functions_chipSeq.R")
-
-
 
 dds = DESeqDataSetFromMatrix(counts, DataFrame(design.matrix), design = ~ condition)
 #dds <- dds[ rowSums(counts(dds)) > Threshold.read.counts, ]
 dds <- dds[ rowSums(counts(dds)) > 10, ]
 sizeFactors(dds) = ss/median(ss)
+#dds <- estimateSizeFactors(dds)
 fpm = fpm(dds, robust = TRUE)
-rownames(fpm) = annot$GeneID
 
-vsd <- varianceStabilizingTransformation(dds, blind = FALSE)
 
 #fpkm = fpm/annot$Length[index.peaks]*10^3
 xx = log2(fpm + 2^-6)
 index.lsy6 = c(which(rownames(xx)=='chrV_10646957_10647220'), which(rownames(xx) == 'chrV_10647225_10647697'))
-xx[index.lsy6, grep('90min', colnames(xx))]
-
-##########################################
-# pca for overview 
-##########################################
-pca = plotPCA(vsd, intgroup = 'condition', returnData=FALSE)
-plot(pca)
-
-pca.saved = plotPCA(vsd, intgroup = 'condition', returnData=TRUE)
-mm = match(rownames(pca.saved), design.matrix$file.name)
-pca.saved = data.frame(pca.saved, design.matrix[mm, ])
-pca.saved$lineage.genotype = paste0(pca.saved$lineage, '_', pca.saved$genetic.background)
-ggp = ggplot(data=pca.saved, aes(PC1, PC2, shape=time.point, color = lineage.genotype )) + 
-  geom_point(size=3) 
-#+
-  #scale_shape_manual(values=c(21:24)) + 
-  #scale_alpha_manual(values=c("MLC1480"=0, " MLC2309"=1, 'MLC2310' = 2, 'otls252.253' = 3)) 
-  #+
-  #geom_text(hjust = 0.7, nudge_y = 2.5, size=2.5)
-plot(ggp);
+xx[index.lsy6, grep('90min*', colnames(xx))]
+xx[index.lsy6, ]
 
 ##########################################
 # merge biological replicates 
@@ -257,6 +237,32 @@ for(n in 1:length(cc))
   yy[,n] = apply(xx[,kk], 1, median)
 }
 
+##########################################
+# plots for paper revision
+##########################################
+pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_analysis", version.analysis, ".pdf")
+pdf(pdfname, width = 12, height = 10)
+
+vsd <- varianceStabilizingTransformation(dds, blind = FALSE)
+
+## pca for overview
+pca = plotPCA(vsd, intgroup = 'condition', returnData=FALSE)
+plot(pca)
+
+pca.saved = plotPCA(vsd, intgroup = 'condition', returnData=TRUE)
+mm = match(rownames(pca.saved), design.matrix$file.name)
+pca.saved = data.frame(pca.saved, design.matrix[mm, ])
+pca.saved$lineage.genotype = paste0(pca.saved$lineage, '_', pca.saved$genetic.background)
+ggp = ggplot(data=pca.saved, aes(PC1, PC2, shape=time.point, color = lineage.genotype )) + 
+  geom_point(size=3) 
+#+
+  #scale_shape_manual(values=c(21:24)) + 
+  #scale_alpha_manual(values=c("MLC1480"=0, " MLC2309"=1, 'MLC2310' = 2, 'otls252.253' = 3)) 
+  #+
+  #geom_text(hjust = 0.7, nudge_y = 2.5, size=2.5)
+plot(ggp);
+
+## sample correlations
 library(corrplot)
 col1 <- colorRampPalette(c("#7F0000","red","#FF7F00","yellow","white", 
                            "cyan", "#007FFF", "blue","#00007F"))
@@ -273,6 +279,7 @@ corrplot(M, method="number", type = 'upper')
 #         addrect=ceiling(ncol(yy)/2), col=col1(100), rect.col=c('green'), rect.lwd=2.0)
 
 
+## scatter plots 
 compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
                 c("MLC1480_ABa_200min", "MLC1480_ABp_200min"), 
                 c("otls252.253_ASEL_sorted.ASE", "otls252.253_ASER_sorted.ASE"),
@@ -284,11 +291,13 @@ compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
 
 for(n in 1:length(compares))
 {
-  n = 1
+  #n = 1
   kk = match(compares[[n]], colnames(yy))
   plot(yy[,kk], cex= 0.5)
   abline(0, 1, lwd=2.0, col='red')
-  points(yy[index.lsy6, kk], col='blue', cex= 1.0, pch=16)
+  #points(t(yy[index.lsy6[1], kk]), col='orange', cex= 1.5, pch=16)
+  points(t(yy[index.lsy6[2], kk]), col='blue', cex= 2.0, pch=16)
+  #points(yy[index.lsy6, kk], col='blue', cex= 1.5, pch=16)
   
 }
 

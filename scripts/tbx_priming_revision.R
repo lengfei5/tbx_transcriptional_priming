@@ -116,7 +116,10 @@ design.matrix$condition = paste0(design.matrix$genetic.background, '_', design.m
 conds = unique(design.matrix$condition)
 peaks = c()
 peaknames = conds
-pval = 5
+
+pval = 10
+pool.peaks.for.biologicalRep = FALSE
+Check.replicate.peakOverlap = FALSE
 
 for(cc in conds){
   # fac = 'ABa'
@@ -134,9 +137,13 @@ for(cc in conds){
     if(length(peaks.merged) == 0) {
       peaks.merged = reduce(p10, ignore.strand = TRUE)
     }else{
-      peaks.merged = reduce(intersect(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
+      if(pool.peaks.for.biologicalRep){
+        peaks.merged = reduce(union(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
+      }else{
+        peaks.merged = reduce(intersect(peaks.merged, p10, ignore.strand = TRUE), ignore.strand = TRUE)
+      }
     }
-    cat(cc, ' -- all peaks :', length(xx), ' -- peaks <10-10: ', length(p10), ' -- merged peaks', length(peaks.merged), '\n')
+    cat(cc, ' -- all peaks :', length(xx), ' -- peaks <10^-', pval, ' : ',  length(p10), ' -- merged peaks', length(peaks.merged), '\n')
   }
   peaks = c(peaks, peaks.merged)
   
@@ -144,7 +151,6 @@ for(cc in conds){
 
 names(peaks) = conds
 
-Check.replicate.peakOverlap = FALSE
 if(Check.replicate.peakOverlap){
   pdf(paste0(outDir, "/Comparison_ATAC_peaks_for_ABa_ABp_replicateOverlapPeaks.pdf"),
       width = 12, height = 8)
@@ -172,20 +178,39 @@ if(Define.Groups.peaks){
   
   ## wt_ABa_90min peaks not overlapped by wt_ABp_90min
   p2 = peaks[[which(names(peaks) == "MLC1480_ABp_90min")]]
-  p = p1[!overlapsAny(p1, p2)]
-  export(p, con = paste0(outDir, '/peak_groups/peaks_wt_ABa_90min_not_sharedby_ABp.bed'))
+  p11 = p1[!overlapsAny(p1, p2)]
+  export(p11, con = paste0(outDir, '/peak_groups/peaks_wt_ABa_90min_not_sharedby_ABp.bed'))
   
   ## peaks for ASER and ASEL
   p3 = peaks[[which(names(peaks) == "otls252.253_ASEL_sorted.ASE")]]
   p4 = peaks[[which(names(peaks) == "otls252.253_ASER_sorted.ASE")]]
   
+  p33 = p3[!overlapsAny(p3, peaks[[which(names(peaks) == "MLC1480_ABa_330min")]])]
+  p44 = p4[!overlapsAny(p4, peaks[[which(names(peaks) == "MLC1480_ABp_330min")]])]
+  
   export(p3, con = paste0(outDir, '/peak_groups/peaks_wt_ASEL.bed'))
   export(p4, con = paste0(outDir, '/peak_groups/peaks_wt_ASER.bed'))
   
+  export(p33, con = paste0(outDir, '/peak_groups/peaks_wt_ASEL_vs_ABa.330min.bed'))
+  export(p44, con = paste0(outDir, '/peak_groups/peaks_wt_ASER_vs_ABp.330min.bed'))
+  
   
   ## group of genes similar to lsy-6: tbx-binding, open in ABa_wt_90min but closed in ABp_wt_90min
+  p1 = peaks[[which(names(peaks) == "MLC1480_ABa_90min")]]
+  p2 = peaks[[which(names(peaks) == "MLC1480_ABp_90min")]]
+  p11 = p1[!overlapsAny(p1, p2)]
   
   tbx = "../data/tbx_90min_peaks_merged_macs2_p_5_filtered_N2_gene_assignment_TSS_WBcel235_analysis_v2.bed"
+  tbx = readPeakFile(tbx, as = "GRanges");
+  if(seqlevelsStyle(tbx) != "UCSC") seqlevelsStyle(tbx) = "UCSC";
+  
+  p11 = p11[overlapsAny(p11, tbx)]
+  
+  saveRDS(p11, file = paste0(outDir, '/ATACseq_peaks_similar_to_lsy6.rds'))
+  
+  subsetByOverlaps(p11, lsy6.peaks)
+  export(p11, con = paste0(outDir, 'ATACseq_peaks_similar_to_lsy6.bed'))
+  #lsy6.peaks
   
   # p.all = union(peaks[[1]], peaks[[2]], ignore.strand = TRUE)
   # p.all = union(p.all, peaks[[3]], ignore.strand = TRUE)
@@ -195,65 +220,8 @@ if(Define.Groups.peaks){
   # export(peaks[[1]], con = paste0("../results/peakGroups/early_allPeaks.bed"))
   # export(peaks[[2]], con = paste0("../results/peakGroups/ABa_allPeaks.bed"))
   # export(peaks[[3]], con = paste0("../results/peakGroups/ABp_allPeaks.bed"))
-  # 
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[1]])]
-  # p = p[overlapsAny(p, peaks[[2]])]
-  # p = p[overlapsAny(p, peaks[[3]])]
-  # 
-  # export(p, con = paste0("../results/peakGroups/early_ABa_ABp_shared.bed"))
-  # 
-  # p = p.all[!overlapsAny(p.all, peaks[[2]])]
-  # p = p[!overlapsAny(p, peaks[[3]])]
-  # 
-  # export(p, con = paste0("../results/peakGroups/early_unique.bed"))
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[2]])]
-  # p = p[overlapsAny(p, peaks[[1]])]
-  # p = p[!overlapsAny(p, peaks[[3]])]
-  # 
-  # export(p, con = paste0("../results/peakGroups/early_ABa_shared.bed"))
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[3]])]
-  # p = p[overlapsAny(p, peaks[[1]])]
-  # p = p[!overlapsAny(p, peaks[[2]])]
-  # 
-  # export(p, con = paste0("../results/peakGroups/early_ABp.bed"))
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[2]])]
-  # p = p[!overlapsAny(p, peaks[[1]])]
-  # p = p[!overlapsAny(p, peaks[[3]])]
-  # export(p, con = paste0("../results/peakGroups/ABa_unique.bed"))
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[3]])]
-  # p = p[!overlapsAny(p, peaks[[2]])]
-  # p = p[!overlapsAny(p, peaks[[1]])]
-  # export(p, con = paste0("../results/peakGroups/ABp_unique.bed"))
-  # 
-  # p = p.all[overlapsAny(p.all, peaks[[3]])]
-  # p = p[overlapsAny(p, peaks[[2]])]
-  # p = p[!overlapsAny(p, peaks[[1]])]
-  # export(p, con = paste0("../results/peakGroups/ABa_ABp_shared.bed"))
-  # 
-  # ##########################################
-  # # define ABa and ABp specific peaks using ABa and ABp peaks
-  # ##########################################
-  # ABa = peaks.list[[which(design.matrix$factor.condition == "Aba_90min")]]
-  # ABp = peaks.list[[which(design.matrix$factor.condition == "Abp_90min")]]
-  # p = ABa 
-  # p <- p[mcols(p)[,"X.log10.pvalue."] > pval]
-  # p <- p[!overlapsAny(p, ABp)]
-  # 
-  # export(p, con = paste0("results/motif_analysis/peaks_bed/ABa_unique_peaks.bed"))
-  # 
-  # p = ABp
-  # p <- p[mcols(p)[,"X.log10.pvalue."] > pval]
-  # p <- p[!overlapsAny(p, ABa)]
-  # export(p, con = paste0("results/motif_analysis/peaks_bed/ABp_unique_peaks.bed"))
-  # 
   
 }
-
 
 ########################################################
 ########################################################
@@ -261,7 +229,7 @@ if(Define.Groups.peaks){
 # Differential Binding analysis
 ########################################################
 ########################################################
-DIR.bams = "../../all_ATACseq_for_Manuscript/alignments/BAMs_unique_rmdup"
+DIR.bams = "../../all_ATACseq_for_Manuscript/alignments/BAMs_unique_rmdup_old"
 DIR.peaks = outDir
 
 resDir = outDir
@@ -282,9 +250,9 @@ bam.files = bam.files[grep('tbx', bam.files, invert = TRUE)]
 
 peak.list = list.files(path = DIR.peaks, pattern = "*.bed", full.names = TRUE)
 
+##########################################
 # prepare peak regions and background
-#peak.list = peak.list[grep("pooled|random", peak.list)]
-
+##########################################
 source("functions_chipSeq.R")
 if(addBackground){
   peaks = merge.peaks.macs2(peak.list[grep('random', peak.list, invert = TRUE)], merge.dist = NULL)
@@ -462,6 +430,99 @@ for(n in 1:length(compares))
 
 dev.off()
 
+##########################################
+# scatter plots with highlighted peaks
+##########################################
+library(Signac)
+
+regions = StringToGRanges(rownames(yy), sep = c("_", "_"))
+regions.sel = regions[overlapsAny(regions, pp, minoverlap = 100L)]
+
+kk = match(regions.sel, regions)
+
+index.lsy6 = c(which(rownames(xx)=='chrV_10646957_10647220'), which(rownames(xx) == 'chrV_10647225_10647697'))
+xx[index.lsy6, grep('90min*', colnames(xx))]
+xx[index.lsy6, ]
+
+## scatter plots 
+compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
+                c("MLC1480_ABa_200min", "MLC1480_ABp_200min"), 
+                c("otls252.253_ASEL_sorted.ASE", "otls252.253_ASER_sorted.ASE")
+                )
+
+pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_comparison_fianl", version.analysis, ".pdf")
+pdf(pdfname, width = 12, height = 10)
+
+for(n in 1:length(compares))
+{
+  #n = 1
+  kk = match(compares[[n]], colnames(yy))
+  plot(yy[,kk], cex= 0.5)
+  abline(0, 1, lwd=2.0, col='red')
+  #points(t(yy[index.lsy6[1], kk]), col='orange', cex= 1.5, pch=16)
+  points(t(yy[index.lsy6[2], kk]), col='blue', cex= 2.0, pch=16)
+  #points(yy[index.lsy6, kk], col='blue', cex= 1.5, pch=16)
+  
+}
+
+
+
+##########################################
+# heatmap for genes or peaks similar to lsy-6 
+##########################################
+library(Signac)
+pp = readRDS(file = paste0(outDir, '/ATACseq_peaks_similar_to_lsy6.rds'))
+
+regions = StringToGRanges(rownames(yy), sep = c("_", "_"))
+regions.sel = regions[overlapsAny(regions, pp, minoverlap = 100L)]
+
+kk = match(regions.sel, regions)
+mm = match(c("MLC1480_ABa_90min", "MLC1480_ABa_200min", "MLC1480_ABa_330min", 
+             "MLC1480_ABp_90min", "MLC1480_ABp_200min", "MLC1480_ABp_330min"), colnames(yy))
+
+keep = yy[kk, mm]
+
+library("pheatmap");
+library("RColorBrewer");
+
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(keep, 
+         scale = 'row',
+         cluster_rows = TRUE,
+         cluster_cols = FALSE,
+         gaps_col = 3,
+         fontsize_row = 6,
+         clustering_distance_rows = 'correlation'
+         #clustering_distance_cols = sampleDists,
+         #col = colors
+         )
+
+require(ChIPseeker)
+require(TxDb.Celegans.UCSC.ce11.ensGene)
+txdb <- TxDb.Celegans.UCSC.ce11.ensGene
+peakAnnoList <- annotatePeak(regions.sel, TxDb=txdb, tssRegion=c(-2000, 2000), verbose=FALSE)
+peakannot = data.frame(peakAnnoList, stringsAsFactors = FALSE)
+
+load(file = '/Volumes/groups/cochella/jiwang/annotations/BioMart_WBcel235.Rdata')
+
+peakannot$genes = as.character(annot$Gene.name[match(peakannot$geneId, annot$Gene.stable.ID)])
+kk = which(is.na(peakannot$genes))
+
+peakannot$genes[kk] = as.character(peakannot$geneId[kk])
+
+peakannot$genes[which(peakannot$seqnames=='chrV' & peakannot$end == '10647697')]
+
+rownames(keep) = make.unique(peakannot$genes)
+pheatmap(keep, 
+         scale = 'row',
+         cluster_rows = TRUE,
+         cluster_cols = FALSE,
+         gaps_col = 3,
+         fontsize_row = 5,
+         clustering_distance_rows = 'correlation'
+         #clustering_distance_cols = sampleDists,
+         #col = colors
+)
 # ##########################################
 # # calculate the rpkm and remove the batch difference
 # ##########################################

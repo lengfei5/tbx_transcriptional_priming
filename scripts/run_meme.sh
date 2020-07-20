@@ -4,8 +4,13 @@
 # the meme 4.12.0 is loaded from the module (current version)
 #  
 ####################################
-module load bedtools/2.25.0-foss-2018b
-module load meme/5.0.4-foss-2018b-python-2.7.15
+ml load bedtools/2.25.0-foss-2018b
+ml load meme/5.0.4-foss-2018b-python-3.6.6
+ml load xml-libxml/2.0132-gcccore-7.3.0-perl-5.28.0
+#source activate meme
+#conda env config vars set OMPI_MCA_opal_cuda_support=true
+#source activate base
+#module load meme/5.0.4-foss-2018b-python-2.7.15
 #ml load python/3.6.6-foss-2018b
 #ml load meme/5.0.4-foss-2018b-python-3.6.6
 #MEME_path="/groups/cochella/jiwang/local/meme/bin/"
@@ -13,7 +18,7 @@ module load meme/5.0.4-foss-2018b-python-2.7.15
 cwd=`pwd`;
 
 # bed file as input
-resDir='/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/paper_revision/meme_res'
+resDir='/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/paper_revision/meme_res_test'
 input_peaks="/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming/results/paper_revision/peak_groups"
 
 # output folder
@@ -54,8 +59,8 @@ do
     filename="${filename%.*}"
     echo $filename
     
-    meme-chip -db $pwms $ff -oc ${out_meme}/${filename} -centrimo-local;   
+    meme-chip -db $pwms $ff -oc ${out_meme}/${filename} -fimo-skip -spamo-skip;   
     #ame --oc ${out_ame}/${filename} --control $bg --scoring totalhits --method fisher --bgformat 1 $ff $pwms;
 
-    #break
+    break
 done

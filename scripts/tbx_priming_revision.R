@@ -435,14 +435,24 @@ dev.off()
 ##########################################
 library(Signac)
 
+peak.sels = c('chrV_10646957_10647220', 
+              'chrV_10647225_10647697',
+              'chrII_10316291_10316507',
+              'chrV_20825034_20825321',
+              'chrV_8387150_8387366',
+              'chrV_14867871_14868107')
+peak.sels = StringToGRanges(peak.sels, sep = c('_', '_'))
+
 regions = StringToGRanges(rownames(yy), sep = c("_", "_"))
-regions.sel = regions[overlapsAny(regions, pp, minoverlap = 100L)]
+regions.sel = regions[overlapsAny(regions, peak.sels, minoverlap = 20L)]
 
-kk = match(regions.sel, regions)
+gene.sels = c('gcy-5','gcy-7', 'lsy-6.promoter', 'lsy-6.enhancer',  'gcy-14',
+              'gcy-22')
+index.sels = match(regions.sel, regions)
 
-index.lsy6 = c(which(rownames(xx)=='chrV_10646957_10647220'), which(rownames(xx) == 'chrV_10647225_10647697'))
-xx[index.lsy6, grep('90min*', colnames(xx))]
-xx[index.lsy6, ]
+#index.lsy6 = c(which(rownames(xx)=='chrV_10646957_10647220'), which(rownames(xx) == 'chrV_10647225_10647697'))
+#xx[index.lsy6, grep('90min*', colnames(xx))]
+#xx[index.lsy6, ]
 
 ## scatter plots 
 compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
@@ -451,20 +461,31 @@ compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
                 )
 
 pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_comparison_fianl", version.analysis, ".pdf")
-pdf(pdfname, width = 12, height = 10)
+pdf(pdfname, width = 12, height = 12)
+par(cex = 1.8, las = 1, mgp = c(1.6,0.5,0), mar = c(6,16,2,0.8)+0.1, tcl = -0.3)
+par(pty="s")
 
 for(n in 1:length(compares))
 {
-  #n = 1
+  # n = 3
   kk = match(compares[[n]], colnames(yy))
-  plot(yy[,kk], cex= 0.5)
+  plot(yy[,kk], cex= 0.2, xlim = c(-5, 15), ylim = c(-5, 15))
   abline(0, 1, lwd=2.0, col='red')
-  #points(t(yy[index.lsy6[1], kk]), col='orange', cex= 1.5, pch=16)
-  points(t(yy[index.lsy6[2], kk]), col='blue', cex= 2.0, pch=16)
+  points(yy[index.sels[3:4], kk], col='blue', cex= 1.2, pch=16)
+  text(yy[index.sels[3:4], kk], gene.sels[3:4], offset = 0.5, pos = 4, cex = 0.8)
+  rr = yy[,kk[1]] - yy[,kk[2]]
+  if(n>=3){
+    pch = c(15:18)
+    points(yy[index.sels[c(1:2, 5:6)], kk], col='orange', cex= 1.2, pch=pch)
+    #text(yy[index.sels[c(1:2, 5:6)], kk], gene.sels[c(1:2, 5:6)], offset = 1.0, pos = 4)
+    legend('topleft', legend =  gene.sels[c(1:2, 5:6)], pch = pch, bty = 'n', col = 'orange')
+  }
+  
   #points(yy[index.lsy6, kk], col='blue', cex= 1.5, pch=16)
   
 }
 
+dev.off()
 
 
 ##########################################

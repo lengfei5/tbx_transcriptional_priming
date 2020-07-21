@@ -19,6 +19,7 @@ outDir = paste0("../results/paper_revision")
 if(!dir.exists(outDir)) dir.create(outDir);
 manual.modifySampleInfos = TRUE
 
+
 ###############################
 # libraries and functions
 ###############################

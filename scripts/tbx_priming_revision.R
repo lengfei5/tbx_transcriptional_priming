@@ -458,10 +458,13 @@ index.sels = match(regions.sel, regions)
 ## scatter plots 
 compares = list(c("MLC1480_ABa_90min", "MLC1480_ABp_90min"),
                 c("MLC1480_ABa_200min", "MLC1480_ABp_200min"), 
+                c("MLC1480_ABa_90min", "MLC2309_ABa_90min"),
+                c("otls252.253_ASEL_sorted.ASE", "MLC2310_ASE_sorted.ASE"),
                 c("otls252.253_ASEL_sorted.ASE", "otls252.253_ASER_sorted.ASE")
+                
                 )
 
-pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_comparison_fianl", version.analysis, ".pdf")
+pdfname = paste0(resDir, "/atacPeakSignals_peakSignals_comparison_fianl_v2", version.analysis, ".pdf")
 pdf(pdfname, width = 12, height = 12)
 par(cex = 1.8, las = 1, mgp = c(1.6,0.5,0), mar = c(6,16,2,0.8)+0.1, tcl = -0.3)
 par(pty="s")
@@ -475,7 +478,7 @@ for(n in 1:length(compares))
   points(yy[index.sels[3:4], kk], col='blue', cex= 1.2, pch=16)
   text(yy[index.sels[3:4], kk], gene.sels[3:4], offset = 0.5, pos = 4, cex = 0.8)
   rr = yy[,kk[1]] - yy[,kk[2]]
-  if(n>=3){
+  if(n>=5){
     pch = c(15:18)
     points(yy[index.sels[c(1:2, 5:6)], kk], col='orange', cex= 1.2, pch=pch)
     #text(yy[index.sels[c(1:2, 5:6)], kk], gene.sels[c(1:2, 5:6)], offset = 1.0, pos = 4)

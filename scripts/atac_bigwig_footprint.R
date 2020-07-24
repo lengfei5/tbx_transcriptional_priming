@@ -9,20 +9,25 @@
 # Date of creation: Wed Sep 26 14:22:26 2018
 ##########################################################################
 ##########################################################################
-Manual.changeFileName = FALSE
-Normalized.coverage = TRUE
-Logtransform.coverage = FALSE
-Pairend = FALSE
-baseDir = '/Volumes/clustertmp/jiwang/R9964_atac'
-
-InputDir = paste0(baseDir, '/alignments/BAMs_unique_rmdup')
-OutDir = paste0(baseDir, "/bigWigs_PE/")
-bamlist = list.files(path = InputDir, pattern = "*.bam$", full.names = TRUE)
-
-if(!dir.exists(OutDir)) dir.create(OutDir)
+rm(list=ls())
 
 library(GenomicAlignments)
 library(rtracklayer)
+
+Manual.changeFileName = FALSE
+Normalized.coverage = TRUE
+Logtransform.coverage = FALSE
+
+baseDir = '/Volumes/groups/cochella/jiwang/Projects/Ariane/tbx_transcriptional_priming'
+
+InputDir = paste0(baseDir, '/Bams_atac_chip_all')
+OutDir = paste0(baseDir, "/bigwigs_atac_chip_all/")
+if(!dir.exists(OutDir)) dir.create(OutDir)
+
+bamlist = list.files(path = InputDir, pattern = "*.bam$", full.names = TRUE)
+bamlist = bamlist[grep('atacseq', bamlist)]
+
+Pairend = TRUE
 
 for(n in c(1:length(bamlist)))
 {
@@ -55,7 +60,6 @@ for(n in c(1:length(bamlist)))
     }else{
       xx = ga
     }
-    
     if(Logtransform.coverage) xx = log2(xx+2^-6)
     
     export.bw(xx, con = paste0(OutDir, bw.name))
@@ -67,6 +71,8 @@ for(n in c(1:length(bamlist)))
 # Section : split reads into nucleosome free and mono- dinucleosome regions
 # initial code was found 
 # https://rockefelleruniversity.github.io/RU_ATAC_Workshop.html#greenleaf-dataset---finding-open-regions.
+# 
+
 ########################################################
 ########################################################
 bamDir = "../data/Bams"
